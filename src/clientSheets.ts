@@ -1,35 +1,118 @@
 import type { Concert, InterestState } from './types';
 import { mediaFromRecords } from './media';
 
-/** Optional zero-backend mode for static GitHub Pages hosting. Tokens stay in memory. */
+/**
+ * Personal GitHub Pages mode. Keep an access token in per-tab sessionStorage
+ * so a normal page refresh won't ask for OAuth again. This is a short-lived
+ * convenience cache, NOT a long-lived session or a replacement for a backend.
+ * Any same-origin JavaScript (including XSS) can access sessionStorage.
+ */
 const SPREADSHEET_ID='1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc';
 const ALLOWED_EMAIL='tathagat2001@gmail.com';
-let token='';let ownerSub='';let ownerEmail='';
+const CLIENT_ID=import.meta.env.VITE_GOOGLE_CLIENT_ID||'';
+const CACHE_KEY='bengaluru-live-google-session-v1';
+const EXPIRY_BUFFER_MS=60_000;
+type CachedSession={accessToken:string; expiresAt:number; clientId:string};
+type OwnerClaims={email?:string;email_verified?:boolean;sub?:string};
+let token='';let ownerSub='';let ownerEmail='';let expiresAt=0;
+let pendingRestore:Promise<boolean>|undefined;
+let sessionEpoch=0;
 const rawUrl=`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values`;
-export const clientSheetsEnabled=()=>import.meta.env.VITE_CLIENT_SHEETS==='true'&&Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
-export const clientSignedIn=()=>Boolean(token&&ownerSub);
+export const clientSheetsEnabled=()=>import.meta.env.VITE_CLIENT_SHEETS==='true'&&Boolean(CLIENT_ID);
+export const clientSignedIn=()=>Boolean(token&&ownerSub&&Date.now()+EXPIRY_BUFFER_MS<expiresAt);
 export const clientAccount=()=>ownerEmail;
+
+function clearSession(){
+  sessionEpoch++;
+  token='';ownerSub='';ownerEmail='';expiresAt=0;
+  try{window.sessionStorage.removeItem(CACHE_KEY)}catch{/* Storage might be disabled. */}
+}
+function cacheSession(){
+  try{
+    window.sessionStorage.setItem(CACHE_KEY,JSON.stringify({
+      accessToken:token,expiresAt,clientId:CLIENT_ID,
+    } satisfies CachedSession));
+  }catch{/* If storage is unavailable, regular in-memory login still works. */}
+}
+async function verifyOwner(accessToken:string):Promise<Required<OwnerClaims>>{
+  const user=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{
+    headers:{Authorization:`Bearer ${accessToken}`},
+  });
+  if(!user.ok)throw Error('Could not verify signed-in Google account');
+  const claims=await user.json() as OwnerClaims;
+  if(claims.email?.toLowerCase()!==ALLOWED_EMAIL||!claims.email_verified||!claims.sub){
+    throw Error('This site is restricted to the Google account that owns the concert tracker.');
+  }
+  return claims as Required<OwnerClaims>;
+}
+
+/** Restore only a still-valid cached token, and reverify the Google identity. */
+export async function restoreGoogleClient():Promise<boolean>{
+  if(clientSignedIn())return true;
+  if(pendingRestore)return pendingRestore;
+  const epoch=sessionEpoch;
+  pendingRestore=(async()=>{
+    let raw:string|null=null;
+    try{raw=window.sessionStorage.getItem(CACHE_KEY)}catch{return false}
+    if(!raw)return false;
+    let session:CachedSession;
+    try{session=JSON.parse(raw) as CachedSession}catch{clearSession();return false}
+    if(!session||typeof session.accessToken!=='string'||!session.accessToken||
+       session.clientId!==CLIENT_ID||!Number.isFinite(session.expiresAt)||
+       session.expiresAt<=Date.now()+EXPIRY_BUFFER_MS){
+      clearSession();return false;
+    }
+    try{
+      const claims=await verifyOwner(session.accessToken);
+      if(epoch!==sessionEpoch)return false; // Ignore restores completed after sign-out.
+      token=session.accessToken;ownerSub=claims.sub;ownerEmail=claims.email;expiresAt=session.expiresAt;
+      return true;
+    }catch{
+      if(epoch===sessionEpoch)clearSession();
+      return false;
+    }
+  })();
+  try{return await pendingRestore}finally{pendingRestore=undefined}
+}
+
 export async function authorizeGoogleClient():Promise<void>{
   const api=window.google?.accounts?.oauth2;
   if(!api)throw Error('Google Identity Services has not loaded. Check your network connection.');
-  const res=await new Promise<{access_token?:string,error?:string}>((resolve,reject)=>{
-    try{const client=api.initTokenClient({client_id:import.meta.env.VITE_GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets openid email profile',callback:resolve,error_callback:(error:unknown)=>reject(Error('Google authentication was cancelled or blocked: '+JSON.stringify(error)))});client.requestAccessToken({prompt:'consent'});}catch(e){reject(e)}
+  const res=await new Promise<{access_token?:string;expires_in?:number|string;error?:string}>((resolve,reject)=>{
+    try{
+      const client=api.initTokenClient({
+        client_id:CLIENT_ID,
+        scope:'https://www.googleapis.com/auth/spreadsheets openid email profile',
+        callback:resolve,
+        error_callback:(error:unknown)=>reject(Error('Google authentication was cancelled or blocked: '+JSON.stringify(error))),
+      });
+      client.requestAccessToken({prompt:'consent'});
+    }catch(e){reject(e)}
   });
   if(!res.access_token)throw Error(res.error||'Google authentication failed');
-  const user=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:`Bearer ${res.access_token}`}});
-  if(!user.ok)throw Error('Could not verify signed-in Google account');
-  const claims=await user.json() as {email?:string;email_verified?:boolean;sub?:string};
-  if(claims.email?.toLowerCase()!==ALLOWED_EMAIL||!claims.email_verified||!claims.sub){
+  let claims:Required<OwnerClaims>;
+  try{claims=await verifyOwner(res.access_token)}
+  catch(e){
     window.google?.accounts?.oauth2?.revoke(res.access_token,()=>{});
-    throw Error('This site is restricted to the Google account that owns the concert tracker.');
+    throw e;
   }
+  const tokenLifetime=Number(res.expires_in);
+  // Google token responses include expires_in. Cap to 1 hour and fail closed if absent.
+  const ttlSeconds=Number.isFinite(tokenLifetime)&&tokenLifetime>0?Math.min(tokenLifetime,3600):3000;
+  clearSession();
   token=res.access_token;ownerSub=claims.sub;ownerEmail=claims.email;
+  expiresAt=Date.now()+ttlSeconds*1000;
+  cacheSession();
 }
-export function clientLogout(){if(token){try{window.google?.accounts?.oauth2?.revoke(token,()=>{})}catch{}}token='';ownerEmail='';ownerSub=''}
+export function clientLogout(){
+  const accessToken=token;
+  clearSession();
+  if(accessToken){try{window.google?.accounts?.oauth2?.revoke(accessToken,()=>{})}catch{/* Already cleared. */}}
+}
 async function googleFetch(url:string,options:RequestInit={}){
   if(!token||!ownerSub)throw Error('Google sign-in required');
   const result=await fetch(url,{...options,headers:{Authorization:`Bearer ${token}`,...(options.headers as Record<string,string>||{})}});
-  if(result.status===401){clientLogout();throw Error('Google access expired. Sign in again.')}
+  if(result.status===401){clearSession();throw Error('Google access expired. Sign in again.')}
   if(!result.ok){const body=await result.json().catch(()=>({error:{message:'Request failed'}})) as {error?:{message?:string}};throw Error(body.error?.message||`Google Sheets error ${result.status}`)}
   return result.json();
 }
@@ -59,5 +142,5 @@ export async function setGoogleClientPreference(id:string,state:InterestState,re
   await googleFetch(`${rawUrl}/${encodeURIComponent('User_Preferences!A:F')}:append?${query}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values:[[crypto.randomUUID(),id,ownerSub,state,new Date().toISOString(),requestId]]})});
   return state;
 }
-export interface OAuthAPI {initTokenClient:(options:{client_id:string;scope:string;callback:(res:{access_token?:string;error?:string})=>void;error_callback:(err:unknown)=>void})=>{requestAccessToken:(options:{prompt:string})=>void};revoke:(token:string,cb:()=>void)=>void}
+export interface OAuthAPI {initTokenClient:(options:{client_id:string;scope:string;callback:(res:{access_token?:string;expires_in?:number|string;error?:string})=>void;error_callback:(err:unknown)=>void})=>{requestAccessToken:(options:{prompt:string})=>void};revoke:(token:string,cb:()=>void)=>void}
 declare global {interface Window {google?:{accounts?:{oauth2?:OAuthAPI;id?:{initialize:(x:unknown)=>void,renderButton:(node:HTMLElement,x:unknown)=>void}}}}}
