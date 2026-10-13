@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
-      - run: npm run build -- --mode pages
+      - run: npm run test\n      - run: npm run build -- --mode pages
         env:
           GITHUB_PAGES: 'true'
           VITE_CLIENT_SHEETS: 'true'
