@@ -1,3 +1,4 @@
+import { mediaFromRecords } from '../../src/media';
 /* Cloudflare Pages Functions: shared, dependency-free Google Sheets and auth helpers. */
 export interface Env {
   GOOGLE_CLIENT_ID?: string;
@@ -62,7 +63,7 @@ export async function appendPreference(env:Env,fields:string[]){
 }
 export function parseRecords(matrix:string[][]){if(!matrix.length)return [];const header=matrix[0];return matrix.slice(1).filter(r=>r[0]).map(row=>Object.fromEntries(header.map((name,i)=>[name,row[i]||''])) as Record<string,string>)}
 const n=(s:string)=>s?.trim()!==''&&Number.isFinite(Number(s))?Number(s):null;
-export function eventFromRecord(r:Record<string,string>,preference:string){
-  return {id:r.Event_ID,name:r.Event_Name,artists:r.Artists,genre:r.Primary_Genre,subgenres:(r.Subgenres||'').split(';').map(x=>x.trim()).filter(Boolean),format:r.Event_Format,tributeTo:r.Tribute_To,date:r.Start_Date,time:r.Start_Time,venue:r.Venue,area:r.Area,organizer:r.Organizer,priceMin:n(r.Price_Min_INR),priceMax:n(r.Price_Max_INR),admissionType:r.Admission_Type,ticketStatus:r.Ticket_Status,eventStatus:r.Event_Status,bookingUrl:r.Booking_URL,sourceUrl:(r.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:r.Relevance_Tier,verification:r.Verification,firstSeen:r.First_Seen_At,lastVerified:r.Last_Verified_At,notes:r.Notes,preference:preference||'neutral'};
+export function eventFromRecord(r:Record<string,string>,preference:string,images:ReturnType<typeof mediaFromRecords>[string]=[]){
+  return {id:r.Event_ID,name:r.Event_Name,artists:r.Artists,images,genre:r.Primary_Genre,subgenres:(r.Subgenres||'').split(';').map(x=>x.trim()).filter(Boolean),format:r.Event_Format,tributeTo:r.Tribute_To,date:r.Start_Date,time:r.Start_Time,venue:r.Venue,area:r.Area,organizer:r.Organizer,priceMin:n(r.Price_Min_INR),priceMax:n(r.Price_Max_INR),admissionType:r.Admission_Type,ticketStatus:r.Ticket_Status,eventStatus:r.Event_Status,bookingUrl:r.Booking_URL,sourceUrl:(r.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:r.Relevance_Tier,verification:r.Verification,firstSeen:r.First_Seen_At,lastVerified:r.Last_Verified_At,notes:r.Notes,preference:preference||'neutral'};
 }
 export function latestStates(preferences:Record<string,string>[],sub:string){const result:Record<string,string>={};for(const r of preferences){if(r.User_ID===sub&&['neutral','wishlisted','not_interested'].includes(r.New_State))result[r.Event_ID]=r.New_State;}return result;}

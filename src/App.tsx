@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownUp, ArrowRight, CalendarDays, ChevronDown, Compass, ExternalLink, EyeOff, Heart, MapPin, Menu, Music2, RefreshCcw, Search, SlidersHorizontal, Sparkles, Ticket, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDownUp, ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Compass, ExternalLink, EyeOff, Heart, MapPin, Menu, Music2, RefreshCcw, Search, SlidersHorizontal, Sparkles, Ticket, X } from 'lucide-react';
 import type { Concert, InterestState, Tab, AuthResponse } from './types';
 import { applyTab, compareConcerts, dateParts, genres, genreGroup, getLocalPreferences, isPast, niceDate, priceLabel, saveLocalPreferences, SHEET_URL, timeLabel, todayIST, validUrl } from './lib';
 import { seedConcerts } from './seed';
@@ -27,16 +27,47 @@ function Cover({event,large=false}:{event:Concert;large?:boolean}){
     <div className="cover-text">{p.initial}</div><div className="cover-base">{event.genre.toUpperCase()}</div>
   </div>;
 }
+/** One carousel instance per event/card; failed hotlinked images never break the layout. */
+function EventGallery({event,large=false}:{event:Concert;large?:boolean}){
+  const [slide,setSlide]=useState(0);
+  const [failed,setFailed]=useState<string[]>([]);
+  const touchStart=useRef<{x:number;y:number}|null>(null);
+  const available=event.images.filter(image=>!failed.includes(image.url));
+  const active=available[Math.min(slide,Math.max(0,available.length-1))];
+  const host=(url:string)=>{try{const h=new URL(url).hostname.replace(/^www\./,'');return h==='in.bookmyshow.com'?'BookMyShow':h==='district.in'?'District':h==='sabhablr.in'?'Sabha BLR':h==='bangaloreinternationalcentre.org'?'BIC':h;}catch{return 'Source'}};
+  const move=(direction:number)=>setSlide(current=>(Math.min(current,available.length-1)+direction+available.length)%available.length);
+  const onError=()=>{if(active){setFailed(old=>[...old,active.url]);setSlide(0)}};
+  return <div className={'event-gallery '+(large?'gallery-large':'')} aria-label={`Event images for ${event.name}`} onTouchStart={e=>{touchStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY}}} onTouchEnd={e=>{const start=touchStart.current;touchStart.current=null;if(!start||available.length<2)return;const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.3)move(dx<0?1:-1)}}>
+    {active?<>
+      <img className="gallery-image" src={active.url} alt={active.alt||`${event.name} event poster`} loading={large?'eager':'lazy'} decoding="async" referrerPolicy="no-referrer" onError={onError}/>
+      <div className="gallery-source"><a href={active.sourceUrl} target="_blank" rel="noopener noreferrer" title="Open original event image source" aria-label={`Image from ${host(active.sourceUrl)} – original event page`} onClick={e=>e.stopPropagation()}>Artwork: {host(active.sourceUrl)} <ExternalLink size={11}/></a></div>
+      {available.length>1&&<>
+        <button type="button" className="gallery-arrow gallery-arrow-prev" aria-label={`Previous image for ${event.name}`} onClick={()=>move(-1)}><ChevronLeft size={19}/></button>
+        <button type="button" className="gallery-arrow gallery-arrow-next" aria-label={`Next image for ${event.name}`} onClick={()=>move(1)}><ChevronRight size={19}/></button>
+        <div className="gallery-dots" aria-label="Image slides">{available.map((image,i)=><button key={image.url} type="button" className={image.url===active.url?'active':''} aria-label={`Show image ${i+1} of ${available.length}`} aria-current={image.url===active.url?'true':undefined} onClick={()=>setSlide(i)}/>)}</div>
+        <span className="gallery-counter">{Math.min(slide,available.length-1)+1}/{available.length}</span>
+      </>}
+    </>:<Cover event={event} large={large}/>}
+  </div>;
+}
+function ArtistLine({artists,modal=false}:{artists:string;modal?:boolean}){
+  const names=artists?.split(';').map(n=>n.trim()).filter(Boolean)||[];
+  const meaningful=names.filter(n=>!/(?:not yet specified|not yet verified|lineup not yet|artists? not)/i.test(n));
+  return <div className={modal?'featured-artists modal-featured-artists':'featured-artists'}>
+    <div className="artists-label"><Music2 size={13}/> {modal?'PERFORMERS & ARTISTS':'PERFORMING ARTISTS'}</div>
+    <div className="artist-names">{meaningful.length?meaningful.map((name,i)=><span key={`${i}-${name}`}>{name}</span>):<span>Lineup to be announced</span>}</div>
+  </div>;
+}
 function DateTile({date}:{date:string}){const d=dateParts(date);return <div className="date-tile"><span>{d.month}</span><strong>{d.day}</strong><small>{d.weekday}</small></div>}
 function StatusPill({event}:{event:Concert}){let s=event.ticketStatus||'Unknown';if(event.eventStatus==='Cancelled'||event.eventStatus==='Postponed')s=event.eventStatus;const blocked=/sold out|cancelled|postponed|conflicting/i.test(s+' '+event.verification);return <span className={'status-pill '+(blocked?'status-alert':'')}>{s}</span>}
 function ConcertCard({event,onPref,onDetail,busy}:{event:Concert,onPref:(id:string,s:InterestState)=>void,onDetail:(e:Concert)=>void,busy:boolean}){
   const group=genreGroup(event.genre,event.subgenres.join(' '));const booking=validUrl(event.bookingUrl),source=validUrl(event.sourceUrl);
   return <article className="event-card">
-    <div className="card-image-wrap"><Cover event={event}/><div className="card-date"><DateTile date={event.date}/></div><div className="image-tag">{group}</div></div>
+    <div className="card-image-wrap"><EventGallery key={event.id} event={event}/><div className="card-date"><DateTile date={event.date}/></div><div className="image-tag">{group}</div></div>
     <div className="card-body">
       <div className="card-meta"><span>{niceDate(event.date).toUpperCase()} <b className="dot">·</b> {timeLabel(event.time)}</span><StatusPill event={event}/></div>
       <button className="event-name" onClick={()=>onDetail(event)}>{event.name}</button>
-      <p className="event-artist" title={event.artists}>{event.artists || 'Artist to be announced'}</p>
+      <ArtistLine artists={event.artists}/>
       <div className="venue"><MapPin size={15}/><span>{event.venue || 'Venue TBA'}{event.area?` · ${event.area}`:''}</span></div>
       <div className="event-footer"><div><strong>{priceLabel(event)}</strong><div className="event-small">{event.format || 'Live event'}</div></div><button className="details-btn" onClick={()=>onDetail(event)}>Details <ArrowRight size={15}/></button></div>
       <div className="event-actions">
@@ -50,7 +81,7 @@ function ConcertCard({event,onPref,onDetail,busy}:{event:Concert,onPref:(id:stri
 function DetailModal({event,onClose,onPref,busy}:{event:Concert,onClose:()=>void,onPref:(id:string,s:InterestState)=>void,busy:boolean}){
   useEffect(()=>{const cb=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose()};document.addEventListener('keydown',cb);return()=>document.removeEventListener('keydown',cb)},[onClose]);
   const target=validUrl(event.bookingUrl)||validUrl(event.sourceUrl);
-  return <div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section role="dialog" aria-modal="true" aria-label={event.name} className="modal"><button className="modal-close" aria-label="Close" onClick={onClose}><X size={20}/></button><div className="modal-cover"><Cover event={event} large/></div><div className="modal-content"><div className="eyebrow">{event.genre} · {event.format}</div><h2>{event.name}</h2><p className="modal-artists">{event.artists||'Artists TBA'}</p><div className="modal-facts"><div><CalendarDays size={17}/><span>{niceDate(event.date)}, {timeLabel(event.time)}</span></div><div><MapPin size={17}/><span>{event.venue||'Venue TBA'}{event.area?' · '+event.area:''}</span></div><div><Ticket size={17}/><span>{priceLabel(event)} · {event.ticketStatus||'Status unknown'}</span></div></div>{event.notes&&<p className="modal-notes">{event.notes}</p>}{event.tributeTo&&<p className="modal-notes">Tribute to: {event.tributeTo}</p>}<p className="verification">Listing confidence: {event.verification||'Unknown'} · Event status: {event.eventStatus||'Unknown'}</p><div className="modal-actions"><button className="primary-action" disabled={busy} onClick={()=>onPref(event.id,event.preference==='wishlisted'?'neutral':'wishlisted')}><Heart size={17} fill={event.preference==='wishlisted'?'currentColor':'none'}/>{event.preference==='wishlisted'?'Remove wishlist':'Wishlist event'}</button><button className="secondary-action" disabled={busy} onClick={()=>onPref(event.id,event.preference==='not_interested'?'neutral':'not_interested')}><EyeOff size={17}/>{event.preference==='not_interested'?'Restore':'Not interested'}</button>{target&&<a className="secondary-action" href={target} target="_blank" rel="noopener noreferrer">{event.bookingUrl?'Book tickets':'View source'}<ExternalLink size={15}/></a>}</div></div></section></div>
+  return <div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section role="dialog" aria-modal="true" aria-label={event.name} className="modal"><button className="modal-close" aria-label="Close" onClick={onClose}><X size={20}/></button><div className="modal-cover"><EventGallery key={event.id} event={event} large/></div><div className="modal-content"><div className="eyebrow">{event.genre} · {event.format}</div><h2>{event.name}</h2><ArtistLine artists={event.artists} modal/><div className="modal-facts"><div><CalendarDays size={17}/><span>{niceDate(event.date)}, {timeLabel(event.time)}</span></div><div><MapPin size={17}/><span>{event.venue||'Venue TBA'}{event.area?' · '+event.area:''}</span></div><div><Ticket size={17}/><span>{priceLabel(event)} · {event.ticketStatus||'Status unknown'}</span></div></div>{event.notes&&<p className="modal-notes">{event.notes}</p>}{event.tributeTo&&<p className="modal-notes">Tribute to: {event.tributeTo}</p>}<p className="verification">Listing confidence: {event.verification||'Unknown'} · Event status: {event.eventStatus||'Unknown'}</p><div className="modal-actions"><button className="primary-action" disabled={busy} onClick={()=>onPref(event.id,event.preference==='wishlisted'?'neutral':'wishlisted')}><Heart size={17} fill={event.preference==='wishlisted'?'currentColor':'none'}/>{event.preference==='wishlisted'?'Remove wishlist':'Wishlist event'}</button><button className="secondary-action" disabled={busy} onClick={()=>onPref(event.id,event.preference==='not_interested'?'neutral':'not_interested')}><EyeOff size={17}/>{event.preference==='not_interested'?'Restore':'Not interested'}</button>{target&&<a className="secondary-action" href={target} target="_blank" rel="noopener noreferrer">{event.bookingUrl?'Book tickets':'View source'}<ExternalLink size={15}/></a>}</div></div></section></div>
 }
 function LoginGate({onChange}:{onChange:()=>void}){
   const configured=Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);

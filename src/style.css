@@ -3,3 +3,26 @@
 @media(max-width:1050px){.event-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-art{right:-100px;opacity:.7}.hero-copy{max-width:610px}.hero{min-height:340px}.desktop-nav button{padding:9px 12px}}@media(max-width:780px){.header-inner{height:70px;padding:0 19px}.desktop-nav{display:none}.mobile-menu{display:grid}.mobile-drawer{display:flex;background:white;box-shadow:0 10px 14px #0001;flex-direction:column;padding:9px 22px 16px}.mobile-drawer button{display:flex;justify-content:space-between;background:none;border:0;text-align:left;padding:14px;border-bottom:1px solid #efefed;font-weight:700}.hero{padding:45px 22px;min-height:310px}.hero-art{opacity:.15;right:-190px}.hero h1{font-size:43px}.hero p{font-size:13px}.hero-row{gap:30px}.page-wrap{padding:42px 20px}.section-title h2{font-size:32px}.toolbar{flex-wrap:wrap}.search-box{flex-basis:100%}.select-box{flex:1;min-width:0}.event-grid{gap:15px}.bottom-callout{padding:24px;flex-direction:column;align-items:start;margin-top:45px}.footer-inner{padding:22px;flex-wrap:wrap;gap:12px}.notice{align-items:start;flex-direction:column}}@media(max-width:570px){.event-grid{grid-template-columns:minmax(0,1fr)}.cover{height:190px}.brand strong{font-size:16px}.brand small{font-size:7px}.brand-icon{width:39px;height:39px}.sync-label{display:none}.hero h1{font-size:35px}.hero-row{gap:25px}.stat strong{font-size:22px}.section-title{align-items:start}.section-title p{max-width:260px;line-height:1.5}.view-count{padding:7px}.modal-content{padding:22px}.modal-content h2{font-size:29px}.overlay{padding:12px}.modal-actions{display:grid;grid-template-columns:1fr 1fr}.modal-actions a{grid-column:span 2}.footer-inner>span:nth-child(2){display:none}}
 .logout-btn{width:auto;padding:0 10px;font-size:11px;font-weight:700}.login-card>.primary-action{margin:18px auto 0;min-height:45px}.login-card .fineprint{font-size:11px;line-height:1.6}
 .card-date{position:absolute;top:12px;right:13px;z-index:2}.date-tile{background:#fffefaeb;color:#355345;border-radius:8px;padding:8px 9px;min-width:50px;text-align:center;box-shadow:0 3px 14px #1d312b20}.date-tile span,.date-tile small{font-size:9px;font-weight:900;letter-spacing:.08em;display:block}.date-tile strong{font:700 24px/1.1 'Playfair Display',serif;display:block;margin:3px 0}
+
+/* Source-linked artwork carousel. Keep the fallback cover for unsourced/unavailable media. */
+.event-gallery{position:relative;width:100%;height:171px;overflow:hidden;background:#dde5dd}
+.event-gallery .cover{height:100%}
+.gallery-image{width:100%;height:100%;object-fit:cover;display:block;background:#e9ece6}
+.gallery-source{position:absolute;bottom:11px;right:11px;z-index:2;max-width:56%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#0d211bbd;color:#fff;border-radius:20px;padding:5px 9px;font-size:9px;font-weight:700;box-shadow:0 1px 6px #0004}
+.gallery-source a{display:flex;gap:5px;align-items:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.gallery-arrow{position:absolute;top:44%;z-index:4;display:grid;place-items:center;background:#fffedbdb;color:#224133;border:0;border-radius:50%;width:30px;height:30px;box-shadow:0 1px 5px #0003}
+.gallery-arrow:hover{background:#fff}
+.gallery-arrow-prev{left:9px}.gallery-arrow-next{right:9px}
+.gallery-dots{position:absolute;z-index:3;bottom:11px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center}
+.gallery-dots button{border:1px solid #fff9;border-radius:50%;width:8px;height:8px;padding:0;background:#fff7;box-shadow:0 0 3px #0008}
+.gallery-dots button.active{background:#fff;width:9px;height:9px}
+.gallery-counter{position:absolute;right:12px;top:12px;color:white;background:#10241baf;border-radius:6px;padding:5px 7px;font-size:10px;font-weight:800}
+.gallery-large{height:280px}.gallery-large .gallery-image{object-fit:contain;background:#17241f}.gallery-large .gallery-source{right:15px;bottom:12px}
+.gallery-large .gallery-arrow{width:38px;height:38px;top:43%}
+.featured-artists{background:#f6f8f3;border:1px solid #eaf0e8;border-radius:9px;padding:10px 12px;margin:4px 0 14px}
+.artists-label{display:flex;align-items:center;gap:5px;font-weight:900;color:#8d735f;font-size:9px;letter-spacing:.11em;margin-bottom:7px}
+.artist-names{display:flex;flex-wrap:wrap;gap:6px}
+.artist-names span{font-size:11.5px;font-weight:750;color:#305244;line-height:1.45}
+.artist-names span:not(:last-child):after{content:' ·';margin-right:1px;color:#a6b4a7}
+.modal-featured-artists{padding:14px;margin:8px 0 19px}.modal-featured-artists .artist-names span{font-size:14px}
+@media(max-width:570px){.event-gallery{height:190px}.gallery-large{height:240px}.gallery-source{font-size:9px;max-width:65%}}

@@ -1,6 +1,8 @@
 export type InterestState = 'neutral' | 'wishlisted' | 'not_interested';
 export type Tab = 'discover' | 'wishlist' | 'not_interested';
+export type EventImage = { url: string; sourceUrl: string; alt: string; type: string; order: number };
 export type Concert = {
+  images: EventImage[];
   id: string;
   name: string;
   artists: string;

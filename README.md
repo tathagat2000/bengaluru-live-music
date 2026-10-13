@@ -83,3 +83,13 @@ Each user choice appends one action. The latest action for an event wins. Switch
 - A listing's booked/sold-out status may be stale until research re-verifies it. The UI shows provenance and uncertain status in details.
 - The frontend is a PWA-like responsive website, not an installable offline-first application.
 - Build dependencies could not be installed in the current execution environment; source-level and backend TypeScript checks were performed, but a complete production build must run in CI or on a networked machine.
+
+## Source-verified event artwork (October 2026)
+
+`Event_Images` is a separate tab on the existing tracker spreadsheet. Each image record has `Event_ID`, `Image_URL`, `Source_Page_URL`, `Alt_Text`, `Image_Type`, `Image_Order`, `Verified_At_UTC`, and `Notes`. The application joins images by stable event ID and sorts by `Image_Order`.
+
+**Image provenance rule:** only use actual image URLs associated with the exact event on the original organizer/ticketing page, including its explicitly linked CDN. Never substitute a generic artist image or a different concert poster. A carousel appears when 2+ verified images are recorded; a single verified image displays normally; if none are verified or remote hotlinking fails, a themed placeholder remains. Credits link to the original event page. Displaying third-party media remains subject to source permissions and remote availability; check source terms before rehosting assets. New event posters need adding to `Event_Images` during daily research.
+
+Two exact BookMyShow event banners were verified and seeded initially (Guns N' Roses on Nov 14 and Indian Ocean on Nov 28). This is not a guarantee that all current listings have posters: most lack a verifiable source-specific image URL and intentionally retain a visual fallback.
+
+The card now emphasizes `Artists` from `Events_Master` (not a guessed vocalist), and the detail modal clearly labels each performer. The same images are supported in the static GitHub Pages OAuth mode and the optional backend mode.

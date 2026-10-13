@@ -1,4 +1,5 @@
 import type { Concert, InterestState } from './types';
+import { mediaFromRecords } from './media';
 
 /** Optional zero-backend mode for static GitHub Pages hosting. Tokens stay in memory. */
 const SPREADSHEET_ID='1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc';
@@ -41,10 +42,11 @@ async function readRanges(ranges:string[]):Promise<string[][][]>{
 function records(matrix:string[][]):Record<string,string>[]{const [head,...rows]=matrix;if(!head)return [];return rows.filter(r=>r[0]).map(r=>Object.fromEntries(head.map((h,i)=>[h,r[i]||''])))}
 const number=(x:string)=>x!==''&&x!=null&&!isNaN(Number(x))?Number(x):null;
 export async function getGoogleClientEvents():Promise<Concert[]>{
-  const [master,prefs]=await readRanges(['Events_Master!A1:AB','User_Preferences!A1:F']);
+  const [master,prefs,mediaRows]=await readRanges(['Events_Master!A1:AB','User_Preferences!A1:F','Event_Images!A1:H']);
+  const media=mediaFromRecords(records(mediaRows));
   const status:Record<string,InterestState>={};
   for(const p of records(prefs)){if(p.User_ID===ownerSub&&['neutral','wishlisted','not_interested'].includes(p.New_State))status[p.Event_ID]=p.New_State as InterestState}
-  return records(master).map(x=>({id:x.Event_ID,name:x.Event_Name,artists:x.Artists,genre:x.Primary_Genre,subgenres:(x.Subgenres||'').split(';').map(t=>t.trim()).filter(Boolean),format:x.Event_Format,tributeTo:x.Tribute_To||'',date:x.Start_Date,time:x.Start_Time||'',venue:x.Venue,area:x.Area,organizer:x.Organizer||'',priceMin:number(x.Price_Min_INR),priceMax:number(x.Price_Max_INR),admissionType:x.Admission_Type||'',ticketStatus:x.Ticket_Status||'',eventStatus:x.Event_Status||'',bookingUrl:x.Booking_URL||'',sourceUrl:(x.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:x.Relevance_Tier,verification:x.Verification,firstSeen:x.First_Seen_At||'',lastVerified:x.Last_Verified_At||'',notes:x.Notes||'',preference:status[x.Event_ID]||'neutral'}));
+  return records(master).map(x=>({id:x.Event_ID,name:x.Event_Name,artists:x.Artists,genre:x.Primary_Genre,images:media[x.Event_ID]||[],subgenres:(x.Subgenres||'').split(';').map(t=>t.trim()).filter(Boolean),format:x.Event_Format,tributeTo:x.Tribute_To||'',date:x.Start_Date,time:x.Start_Time||'',venue:x.Venue,area:x.Area,organizer:x.Organizer||'',priceMin:number(x.Price_Min_INR),priceMax:number(x.Price_Max_INR),admissionType:x.Admission_Type||'',ticketStatus:x.Ticket_Status||'',eventStatus:x.Event_Status||'',bookingUrl:x.Booking_URL||'',sourceUrl:(x.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:x.Relevance_Tier,verification:x.Verification,firstSeen:x.First_Seen_At||'',lastVerified:x.Last_Verified_At||'',notes:x.Notes||'',preference:status[x.Event_ID]||'neutral'}));
 }
 export async function setGoogleClientPreference(id:string,state:InterestState,requestId:string){
   if(!clientSignedIn())throw Error('Sign in again to save preferences');
