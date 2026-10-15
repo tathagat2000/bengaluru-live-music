@@ -1,6 +1,5 @@
 import type { Concert, InterestState, Tab } from './types';
 
-export const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc/edit';
 export const PREF_KEY = 'bengaluru-live-preview-preferences-v1';
 export const todayIST = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 export const niceDate = (date: string) => {

@@ -1,95 +1,59 @@
 # Bengaluru Live
 
-A personal, mobile-friendly React concert-discovery website linked to the existing **Bengaluru Live Music Tracker** Google Sheet. Features Discover, Wishlist, Not Interested, search, genre/date filters, event details and permanent cross-device preferences.
+Bengaluru Live is a React concert-discovery site backed by the existing private Google Sheet. The shared catalogue is public to signed-in users; wishlist and Not Interested preferences are private per Google account and stored in Cloudflare D1.
 
-**Existing spreadsheet:** https://docs.google.com/spreadsheets/d/1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc/edit
+## Current architecture
 
-## Current status
+- React 19 + Vite frontend on Cloudflare Pages.
+- Pages Functions verify Google Identity Services ID tokens and issue an HttpOnly, Secure, SameSite session cookie.
+- The backend reads `Events_Master` and `Event_Images` through a read-only Google service account.
+- D1 stores preferences keyed by the Google `sub`, never by a browser-supplied user ID or email.
+- The legacy browser-to-Sheets path and its single-account allowlist are removed from the production code path.
 
-- The live Google Sheet's `User_Preferences` tab has been created and validated.
-- The frontend and both integration modes are implemented in source code.
-- Production Google OAuth and hosting are **not yet configured**. No live website is claimed.
-- Without credentials, the frontend shows a clearly marked **local preview** seeded from 22 Sheet records. Preview wishlist/rejections are stored only in browser localStorage and **do not sync** to Google Sheets.
+The source spreadsheet is [the existing Bengaluru Live Music tracker](https://docs.google.com/spreadsheets/d/1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc/edit). The `User_Preferences` tab remains an untouched migration source and historical backup.
 
-## Run locally
+## Local development
 
-Requires Node 22 and an internet connection to install dependencies.
+Requires Node.js 22 and an internet connection.
 
 ```bash
-npm install
-cp .env.example .env.local
+npm ci
 npm run dev
 ```
 
-Open http://localhost:5173/. With unconfigured OAuth, the site uses preview mode. `npm run build` builds the frontend. `npm run test` runs unit tests.
+Vite development mode shows the clearly labelled 13 October 2026 local snapshot and stores preview preferences only in localStorage. It never writes to Google Sheets. A production build does not fall back to this snapshot when the backend is unavailable.
 
-## Deployment option A — GitHub Pages, no backend or service-account key
+Checks:
 
-**Recommended for this private single-user project.** Google Identity Services returns a short-lived OAuth access token to the browser; the frontend reads `Events_Master` and writes actions to `User_Preferences` through Google Sheets API. The token remains in browser memory, not localStorage. Every new session requires Google consent/sign-in. Only the specified Google account is accepted, and Google Sheet permissions ultimately govern access.
+```bash
+npm run check
+npm run test
+npm run build
+```
 
-1. Create a Google Cloud project at https://console.cloud.google.com/.
-2. Enable the **Google Sheets API**.
-3. Configure the **Google Auth Platform / OAuth consent screen**. For a personal external test app, add `tathagat2001@gmail.com` as a test user. Request `https://www.googleapis.com/auth/spreadsheets` and the basic OpenID/email/profile scopes. If Google restricts unverified apps, remain in testing with the single authorized account; Google's app verification and publishing rules apply if making it available to others.
-4. Create an **OAuth 2.0 Client ID** of type **Web application**.
-5. Add exact **Authorized JavaScript origins** `http://localhost:5173` and, for GitHub Pages, `https://<your-github-username>.github.io`. **Do not** put `/bengaluru-live-music` in the origin field. This must match the actual eventual domain.
-6. Create a GitHub repository named `bengaluru-live-music`. Upload/push this project's contents to its `main` branch. The included workflow `.github/workflows/deploy.yml` builds and publishes the website.
-7. Under GitHub repository **Settings → Secrets and variables → Actions → Variables**, create `GOOGLE_OAUTH_CLIENT_ID` containing the client ID ending in `.apps.googleusercontent.com` (not a private secret).
-8. Under repository **Settings → Pages**, select **GitHub Actions** as the build/deployment source.
-9. Push to `main` or run the workflow manually. Once deployed, open `https://<username>.github.io/bengaluru-live-music/`. Confirm Google login, read, wishlist, refresh, and cross-device persistence.
+## Production configuration
 
-### Security of option A
+Configure Cloudflare Pages with `npm run build` and `dist`, then set the build variable `VITE_GOOGLE_CLIENT_ID`. Configure the runtime variables `GOOGLE_CLIENT_ID` and `SPREADSHEET_ID`, secrets `SESSION_SECRET` and `GOOGLE_SERVICE_ACCOUNT_JSON`, and a D1 binding named `DB`.
 
-The OAuth client ID is intentionally public, as are all frontend assets and the hardcoded Sheet ID. The Google Sheet is **not** published: users must be authenticated with a Google account that has Sheet permissions. The UI verifies your email using Google's userinfo endpoint. However, client-side checks are not a substitute for server authorization: users granted write access to the Sheet can bypass the application interface. The Google OAuth Sheets scope is broad, not scoped to this workbook. Do not grant access casually. For stronger secret isolation, use option B.
+Do not configure `ALLOWED_EMAIL`, `ALLOWED_EMAILS`, or `VITE_CLIENT_SHEETS`. Any valid, verified Google account is intentionally accepted. Share the private Sheet with the service account as Viewer only.
 
-## Deployment option B — Cloudflare Pages Functions, backend-mediated access
+See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for resource setup, migrations, cutover, verification, and rollback. `.github/workflows/ci.yml` validates pull requests and deploys `main` through Wrangler when the documented GitHub secrets are configured.
 
-This is the original recommended secure architecture and remains implemented in `functions/api/`. It additionally requires a Cloudflare account, Google Cloud service-account credential and a Google OAuth web client ID.
-
-1. Create a dedicated Google Cloud **service account** and enable Sheets API. Share the existing Sheet only with that service account, giving editor permission.
-2. Create a Google OAuth **Web** client for Google Identity Services. Add the Cloudflare Pages domain as an Authorized JavaScript origin.
-3. Deploy the repository as a Cloudflare Pages project (build command `npm run build`, output directory `dist`).
-4. Set `VITE_CLIENT_SHEETS=false` and `VITE_GOOGLE_CLIENT_ID=<clientID>` **at build time**.
-5. Configure server-side secrets: `GOOGLE_CLIENT_ID`, `ALLOWED_EMAIL=tathagat2001@gmail.com`, `SPREADSHEET_ID=1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc`, `GOOGLE_SERVICE_ACCOUNT_JSON=<complete JSON key>`, and `SESSION_SECRET=<64+ random characters>`.
-6. Verify `GET /api/health`, Google login, authenticated `GET /api/events` and a preference write. The backend validates Google ID tokens via Google's public signing keys, authenticates a secure HMAC session cookie, uses same-origin checks and limits mutations to the preference log.
-
-**Do not commit service-account JSON or session secrets to Git.** Never make the Google Sheet public just to bypass authentication.
-
-### API endpoints (Cloudflare mode)
+## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/me` | Session status / backend readiness |
-| POST | `/api/auth/google` | Verify Google ID credential; create session |
-| POST | `/api/auth/logout` | End session |
-| GET | `/api/events` | Concerts joined with preferences |
-| GET | `/api/events/:id` | Single concert |
-| POST | `/api/events/:id/preference` | Save `neutral`, `wishlisted`, or `not_interested` |
-| GET | `/api/summary` | Event counts |
-| GET | `/api/health` | Backend availability |
+| GET | `/api/health` | Runtime health and configuration status |
+| GET | `/api/me` | Current session status |
+| POST | `/api/auth/google` | Verify a Google ID token and create a session |
+| POST | `/api/auth/logout` | Clear the session cookie |
+| GET | `/api/events` | Shared events plus current-user preferences |
+| GET | `/api/events/:id` | One event plus current-user preference |
+| POST | `/api/events/:id/preference` | Set `neutral`, `wishlisted`, or `not_interested` |
+| GET | `/api/summary` | Current-user preference counts |
 
-## Database structure
+All protected routes derive identity from the signed session cookie. State-changing requests require same-origin and JSON checks. Preference requests use a D1 idempotency ledger and an upsert/delete model: neutral means no active preference row.
 
-The existing `Events_Master` sheet remains authoritative and untouched by preference actions. A new tab `User_Preferences` contains:
+## Validation boundary
 
-`Action_ID | Event_ID | User_ID | New_State | Action_At_UTC | Client_Request_ID`
-
-Each user choice appends one action. The latest action for an event wins. Switching from Wishlist to Not Interested does not delete or rewrite the master event row. The research automation should keep existing event IDs stable and leave `User_Preferences` unchanged.
-
-## Reliability and known limitations
-
-- A first page load in preview mode uses the 13 October 2026 event snapshot, not the live Sheet.
-- There is no guarantee Google Sheets API writes are atomic under concurrent updates. This single-user system includes a request ID and duplicate check, but duplicate checks are not transactionally safe. At larger scale use a real transactional database.
-- The React app doesn't scrape sites. New events appear after the existing 9 AM automation writes to `Events_Master`.
-- A listing's booked/sold-out status may be stale until research re-verifies it. The UI shows provenance and uncertain status in details.
-- The frontend is a PWA-like responsive website, not an installable offline-first application.
-- Build dependencies could not be installed in the current execution environment; source-level and backend TypeScript checks were performed, but a complete production build must run in CI or on a networked machine.
-
-## Source-verified event artwork (October 2026)
-
-`Event_Images` is a separate tab on the existing tracker spreadsheet. Each image record has `Event_ID`, `Image_URL`, `Source_Page_URL`, `Alt_Text`, `Image_Type`, `Image_Order`, `Verified_At_UTC`, and `Notes`. The application joins images by stable event ID and sorts by `Image_Order`.
-
-**Image provenance rule:** only use actual image URLs associated with the exact event on the original organizer/ticketing page, including its explicitly linked CDN. Never substitute a generic artist image or a different concert poster. A carousel appears when 2+ verified images are recorded; a single verified image displays normally; if none are verified or remote hotlinking fails, a themed placeholder remains. Credits link to the original event page. Displaying third-party media remains subject to source permissions and remote availability; check source terms before rehosting assets. New event posters need adding to `Event_Images` during daily research.
-
-Two exact BookMyShow event banners were verified and seeded initially (Guns N' Roses on Nov 14 and Indian Ocean on Nov 28). This is not a guarantee that all current listings have posters: most lack a verifiable source-specific image URL and intentionally retain a visual fallback.
-
-The card now emphasizes `Artists` from `Events_Master` (not a guessed vocalist), and the detail modal clearly labels each performer. The same images are supported in the static GitHub Pages OAuth mode and the optional backend mode.
+Repository checks cover frontend logic, image handling, strict frontend TypeScript, production build, and strict Pages Functions TypeScript. Live two-account Google authentication, D1 isolation, Google Cloud configuration, and Cloudflare deployment require authenticated external accounts and remain deployment acceptance tests rather than claims made by local tests.
