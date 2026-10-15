@@ -2,7 +2,6 @@ import { mediaFromRecords } from '../../src/media';
 /* Cloudflare Pages Functions: shared, dependency-free Google Sheets and auth helpers. */
 export interface Env {
   GOOGLE_CLIENT_ID?: string;
-  ALLOWED_EMAILS?: string;
   DB?: {prepare:(sql:string)=>any};
   SPREADSHEET_ID?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
@@ -16,14 +15,13 @@ const encode=(s:string)=>btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/
 const b64url=(raw:Uint8Array)=>btoa(Array.from(raw, x=>String.fromCharCode(x)).join('')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const unb64=(s:string)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-s.length%4)%4)),x=>x.charCodeAt(0));
 const decode=(s:string)=>JSON.parse(new TextDecoder().decode(unb64(s))) as JWTPart;
-export const authorizedEmail=(email:string,env:Env)=>Boolean(env.ALLOWED_EMAILS?.split(',').some(x=>x.trim().toLowerCase()===email.toLowerCase()));
-export const configured=(e:Env)=>Boolean(e.GOOGLE_CLIENT_ID&&e.ALLOWED_EMAILS&&e.SPREADSHEET_ID&&e.GOOGLE_SERVICE_ACCOUNT_JSON&&e.SESSION_SECRET&&e.DB);
+export const configured=(e:Env)=>Boolean(e.GOOGLE_CLIENT_ID&&e.SPREADSHEET_ID&&e.GOOGLE_SERVICE_ACCOUNT_JSON&&e.SESSION_SECRET&&e.DB);
 export function json(data:unknown,status=200,extra?:HeadersInit){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',...(extra||{})}})}
 export function safeOrigin(request:Request){const origin=request.headers.get('Origin');return !!origin && new URL(origin).origin===new URL(request.url).origin}
 function signingKey(secret:string){return crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify'])}
 export async function sessionCookie(session:Session,secret:string){const data=encode(JSON.stringify(session));const signature=b64url(new Uint8Array(await crypto.subtle.sign('HMAC',await signingKey(secret),enc.encode(data))));return `concert_session=${data}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`}
 export function clearCookie(){return 'concert_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'}
-export async function readSession(req:Request,env:Env):Promise<Session|null>{if(!env.SESSION_SECRET)return null;const cookie=req.headers.get('Cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith('concert_session='))?.slice(16);if(!cookie)return null;const [d,s]=cookie.split('.');if(!d||!s)return null;try{const valid=await crypto.subtle.verify('HMAC',await signingKey(env.SESSION_SECRET),unb64(s),enc.encode(d));if(!valid)return null;const ses=decode(d) as unknown as Session;if(!ses.sub||!ses.email||!ses.exp||ses.exp*1000<Date.now()||!authorizedEmail(ses.email,env))return null;return ses}catch{return null}}
+export async function readSession(req:Request,env:Env):Promise<Session|null>{if(!env.SESSION_SECRET)return null;const cookie=req.headers.get('Cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith('concert_session='))?.slice(16);if(!cookie)return null;const [d,s]=cookie.split('.');if(!d||!s)return null;try{const valid=await crypto.subtle.verify('HMAC',await signingKey(env.SESSION_SECRET),unb64(s),enc.encode(d));if(!valid)return null;const ses=decode(d) as unknown as Session;if(!ses.sub||!ses.email||!ses.exp||ses.exp*1000<Date.now())return null;return ses}catch{return null}}
 let jwksCache:{expires:number;keys:JsonWebKey[]}|undefined;
 async function jwks(){if(jwksCache&&jwksCache.expires>Date.now())return jwksCache.keys;const res=await fetch('https://www.googleapis.com/oauth2/v3/certs');if(!res.ok)throw Error('Google signing keys unavailable');const data=await res.json() as {keys:JsonWebKey[]};jwksCache={keys:data.keys,expires:Date.now()+1000*60*60};return data.keys}
 export async function verifyGoogleToken(jwt:string,env:Env):Promise<{sub:string;email:string}>{
@@ -33,7 +31,7 @@ export async function verifyGoogleToken(jwt:string,env:Env):Promise<{sub:string;
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
   const ok=await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,unb64(parts[2]),enc.encode(`${parts[0]}.${parts[1]}`));
   const now=Math.floor(Date.now()/1000);
-  if(!ok||!['accounts.google.com','https://accounts.google.com'].includes(String(claims.iss))||claims.aud!==env.GOOGLE_CLIENT_ID||typeof claims.exp!=='number'||claims.exp<=now||typeof claims.iat!=='number'||claims.iat>now+60||claims.email_verified!==true||typeof claims.email!=='string'||typeof claims.sub!=='string'||!authorizedEmail(claims.email,env))throw Error('This Google account is not authorized');
+  if(!ok||!['accounts.google.com','https://accounts.google.com'].includes(String(claims.iss))||claims.aud!==env.GOOGLE_CLIENT_ID||typeof claims.exp!=='number'||claims.exp<=now||typeof claims.iat!=='number'||claims.iat>now+60||claims.email_verified!==true||typeof claims.email!=='string'||typeof claims.sub!=='string')throw Error('This Google account is not authorized');
   return {sub:claims.sub,email:claims.email};
 }
 function pemBytes(pem:string){const base64=pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,'');return unb64(base64.replace(/\+/g,'-').replace(/\//g,'_'))}
