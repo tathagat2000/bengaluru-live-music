@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bengaluru-live-music",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-15",
+  "vars": {
+    "SPREADSHEET_ID": "1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bengaluru-live-preferences",
+      "database_id": "26863a3f-52a2-485f-8bd8-a4f1f3314409"
+    }
+  ]
+}
