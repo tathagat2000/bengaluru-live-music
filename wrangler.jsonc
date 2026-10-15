@@ -4,6 +4,7 @@
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-15",
   "vars": {
+    "GOOGLE_CLIENT_ID": "790106932699-5ou4mmcikk424hkl26eme75bente78so.apps.googleusercontent.com",
     "SPREADSHEET_ID": "1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc"
   },
   "d1_databases": [
