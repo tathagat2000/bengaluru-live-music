@@ -43,7 +43,7 @@ async function accessToken(env:Env){
   if(!env.GOOGLE_SERVICE_ACCOUNT_JSON)throw Error('Google service account not configured');
   const service=JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON) as {client_email:string;private_key:string;token_uri?:string};
   if(!service.client_email||!service.private_key)throw Error('Missing service account credentials');
-  const now=Math.floor(Date.now()/1000),head=encode(JSON.stringify({alg:'RS256',typ:'JWT'})),body=encode(JSON.stringify({iss:service.client_email,scope:'https://www.googleapis.com/auth/spreadsheets',aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3300}));
+  const now=Math.floor(Date.now()/1000),head=encode(JSON.stringify({alg:'RS256',typ:'JWT'})),body=encode(JSON.stringify({iss:service.client_email,scope:'https://www.googleapis.com/auth/spreadsheets.readonly',aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3300}));
   const key=await crypto.subtle.importKey('pkcs8',pemBytes(service.private_key),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);
   const sig=b64url(new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,enc.encode(`${head}.${body}`))));
   const result=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:`${head}.${body}.${sig}`})});
