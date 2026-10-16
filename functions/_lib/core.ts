@@ -6,6 +6,7 @@ export interface Env {
   SPREADSHEET_ID?: string;
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
   SESSION_SECRET?: string;
+  INGESTION_SHARED_SECRET?: string;
 }
 export interface D1Prepared {bind:(...values:unknown[])=>D1Prepared;all:<T=Record<string,unknown>>()=>Promise<{results:T[]}>;first:<T=Record<string,unknown>>()=>Promise<T|null>;run:()=>Promise<unknown>}
 export interface D1Database {prepare:(sql:string)=>D1Prepared;batch:(statements:D1Prepared[])=>Promise<unknown[]>}
@@ -17,7 +18,7 @@ const encode=(s:string)=>btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/
 const b64url=(raw:Uint8Array)=>btoa(Array.from(raw, x=>String.fromCharCode(x)).join('')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const unb64=(s:string)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-s.length%4)%4)),x=>x.charCodeAt(0));
 const decode=(s:string)=>JSON.parse(new TextDecoder().decode(unb64(s))) as JWTPart;
-export const configured=(e:Env)=>Boolean(e.GOOGLE_CLIENT_ID&&e.SPREADSHEET_ID&&e.GOOGLE_SERVICE_ACCOUNT_JSON&&e.SESSION_SECRET&&e.DB);
+export const configured=(e:Env)=>Boolean(e.GOOGLE_CLIENT_ID&&e.SESSION_SECRET&&e.DB);
 export function json(data:unknown,status=200,extra?:HeadersInit){return new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',...(extra||{})}})}
 export function safeOrigin(request:Request){const origin=request.headers.get('Origin');return !!origin && new URL(origin).origin===new URL(request.url).origin}
 function signingKey(secret:string){return crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify'])}
@@ -60,5 +61,5 @@ export async function readRanges(env:Env,ranges:string[]):Promise<string[][][]>{
 export function parseRecords(matrix:string[][]){if(!matrix.length)return [];const header=matrix[0];return matrix.slice(1).filter(r=>r[0]).map(row=>Object.fromEntries(header.map((name,i)=>[name,row[i]||''])) as Record<string,string>)}
 const n=(s:string)=>s?.trim()!==''&&Number.isFinite(Number(s))?Number(s):null;
 export function eventFromRecord(r:Record<string,string>,preference:string,images:ReturnType<typeof mediaFromRecords>[string]=[]){
-  return {id:r.Event_ID,name:r.Event_Name,artists:r.Artists,images,genre:r.Primary_Genre,subgenres:(r.Subgenres||'').split(';').map(x=>x.trim()).filter(Boolean),format:r.Event_Format,tributeTo:r.Tribute_To,date:r.Start_Date,time:r.Start_Time,venue:r.Venue,area:r.Area,organizer:r.Organizer,priceMin:n(r.Price_Min_INR),priceMax:n(r.Price_Max_INR),admissionType:r.Admission_Type,ticketStatus:r.Ticket_Status,eventStatus:r.Event_Status,bookingUrl:r.Booking_URL,sourceUrl:(r.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:r.Relevance_Tier,verification:r.Verification,firstSeen:r.First_Seen_At,lastVerified:r.Last_Verified_At,notes:r.Notes,preference:preference||'neutral'};
+  return {id:r.Event_ID,name:r.Event_Name,artists:r.Artists,images,genre:r.Primary_Genre,subgenres:(r.Subgenres||'').split(';').map(x=>x.trim()).filter(Boolean),format:r.Event_Format,eventCategory:r.Event_Category||'music',tributeTo:r.Tribute_To,date:r.Start_Date,time:r.Start_Time,venue:r.Venue,area:r.Area,organizer:r.Organizer,priceMin:n(r.Price_Min_INR),priceMax:n(r.Price_Max_INR),admissionType:r.Admission_Type,ticketStatus:r.Ticket_Status,eventStatus:r.Event_Status,bookingUrl:r.Booking_URL,sourceUrl:(r.Source_URLs||'').split(/[,;\n]/)[0]||'',relevance:r.Relevance_Tier,verification:r.Verification,firstSeen:r.First_Seen_At,lastVerified:r.Last_Verified_At,notes:r.Notes,preference:preference||'neutral'};
 }

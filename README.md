@@ -1,16 +1,17 @@
 # Bengaluru Live
 
-Bengaluru Live is a React concert-discovery site backed by the existing private Google Sheet. The shared catalogue is public to signed-in users; wishlist and Not Interested preferences are private per Google account and stored in Cloudflare D1.
+Bengaluru Live is a React live-events discovery site backed by a Cloudflare D1 catalogue. The shared catalogue is public to signed-in users; wishlist and Not Interested preferences are private per Google account and stored in the same D1 database. The existing private Google Sheet is retained as a read-only historical backup.
 
 ## Current architecture
 
 - React 19 + Vite frontend on Cloudflare Pages.
 - Pages Functions verify Google Identity Services ID tokens and issue an HttpOnly, Secure, SameSite session cookie.
-- The backend reads `Events_Master` and `Event_Images` through a read-only Google service account.
+- Cloudflare Workers fetch public event sources, retain evidence snapshots in R2, and write canonical events and images to D1.
+- Cursor SDK agents run in GitHub Actions and review only structured candidate batches; they never write production data directly.
 - D1 stores preferences keyed by the Google `sub`, never by a browser-supplied user ID or email.
 - The legacy browser-to-Sheets path and its single-account allowlist are removed from the production code path.
 
-The source spreadsheet is [the existing Bengaluru Live Music tracker](https://docs.google.com/spreadsheets/d/1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc/edit). The `User_Preferences` tab remains an untouched migration source and historical backup.
+The source spreadsheet is [the existing Bengaluru Live Music tracker](https://docs.google.com/spreadsheets/d/1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc/edit). Run `npm run migrate:catalogue` for a dry run, then `npm run migrate:catalogue -- --apply` after applying migration `0003`; the Sheet and `User_Preferences` tab are never modified.
 
 ## Local development
 
@@ -33,11 +34,11 @@ npm run build
 
 ## Production configuration
 
-Configure Cloudflare Pages with `npm run build` and `dist`, then set the build variable `VITE_GOOGLE_CLIENT_ID`. Configure the runtime variables `GOOGLE_CLIENT_ID` and `SPREADSHEET_ID`, secrets `SESSION_SECRET` and `GOOGLE_SERVICE_ACCOUNT_JSON`, and a D1 binding named `DB`.
+Configure Cloudflare Pages with `npm run build` and `dist`, then set the build variable `VITE_GOOGLE_CLIENT_ID`. Configure the runtime variable `GOOGLE_CLIENT_ID`, secret `SESSION_SECRET`, and the existing D1 binding named `DB`. The legacy service-account variables are used only by the one-time catalogue migration.
 
 Do not configure `ALLOWED_EMAIL`, `ALLOWED_EMAILS`, or `VITE_CLIENT_SHEETS`. Any valid, verified Google account is intentionally accepted. Share the private Sheet with the service account as Viewer only.
 
-See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for resource setup, migrations, cutover, verification, and rollback. `.github/workflows/ci.yml` validates pull requests and deploys `main` through Wrangler when the documented GitHub secrets are configured.
+See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for resource setup, migrations, cutover, verification, and rollback. See [docs/INGESTION_PIPELINE.md](docs/INGESTION_PIPELINE.md) for the scheduled Worker, queue, R2, and Cursor SDK runner. `.github/workflows/ci.yml` validates pull requests and deploys `main` through Wrangler when the documented GitHub secrets are configured.
 
 ## API
 

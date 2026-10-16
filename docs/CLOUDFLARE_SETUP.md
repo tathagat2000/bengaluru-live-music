@@ -1,12 +1,15 @@
 # Cloudflare deployment and operations
 
-The production application is Cloudflare Pages + Pages Functions. The browser only receives a Google ID-token sign-in flow and a secure session cookie; it never receives Google Sheets credentials. `Events_Master` and `Event_Images` remain shared, read-only catalogue sources. D1 is the only live preference store.
+The production application is Cloudflare Pages + Pages Functions backed by a D1 event catalogue. The browser only receives a Google ID-token sign-in flow and a secure session cookie; it never receives service-account or Cursor credentials. The original Sheet remains a read-only historical backup. The scheduled ingestion Worker is documented in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md).
 
 ## Required resources
 
 - Pages project: `bengaluru-live-music`
 - D1 database: `bengaluru-live-preferences`
 - D1 binding: `DB`
+- Ingestion Worker: `bengaluru-live-ingestion`
+- Queue: `bengaluru-live-source-fetch`
+- R2 bucket: `bengaluru-live-evidence`
 - Build command: `npm run build`
 - Build output: `dist`
 - Node.js: 22
@@ -26,14 +29,14 @@ The OAuth Web client ID is public build configuration. The service-account JSON 
 
 Set the build variable `VITE_GOOGLE_CLIENT_ID` to the Web client ID. Do not set `VITE_CLIENT_SHEETS`; the browser-to-Sheets implementation has been removed. Keep `VITE_PREVIEW_MODE` unset or `false` in production.
 
-Set these runtime variables/secrets for both production and preview as appropriate:
+Set these Pages runtime variables/secrets for both production and preview as appropriate:
 
 | Name | Kind | Value |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` | variable | Same Web client ID |
-| `SPREADSHEET_ID` | variable | `1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc` |
 | `SESSION_SECRET` | secret | Random 64+ character value |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | secret | Complete service-account JSON |
+
+`SPREADSHEET_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON` are needed only by the one-time `migrate:catalogue` script. They are not required by the live Pages API after D1 cutover.
 
 Bind the D1 database as `DB`, then apply migrations:
 
@@ -44,7 +47,7 @@ npx wrangler d1 migrations apply bengaluru-live-preferences --remote
 
 Use the database ID returned by Cloudflare when configuring the Pages D1 binding. Do not create a second database if the project already has one.
 
-GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets, plus `GOOGLE_OAUTH_CLIENT_ID` as a repository variable. Runtime secrets remain in Cloudflare, not GitHub Actions logs.
+GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets, plus `GOOGLE_OAUTH_CLIENT_ID` as a repository variable. The ingestion Worker additionally needs `INGESTION_SHARED_SECRET`, `GITHUB_DISPATCH_TOKEN`, and `GITHUB_REPOSITORY`; configure these with `wrangler secret put` as described in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md). Runtime secrets remain out of Git and workflow logs.
 
 ## Legacy preference migration
 
@@ -78,7 +81,7 @@ npm run test
 npm run build
 ```
 
-With two separate Google accounts, verify that both can sign in, see the same event IDs and artwork, and cannot see each other’s wishlist or rejected events. Verify sign-out, account switching, refresh, a neutral update, invalid sessions, a supplied foreign user ID, and a Sheets/D1 failure. `/api/events`, `/api/events/:id`, `/api/summary`, and preference writes must be unavailable to unauthenticated callers.
+With two separate Google accounts, verify that both can sign in, see the same event IDs and artwork, and cannot see each other’s wishlist or rejected events. Verify sign-out, account switching, refresh, a neutral update, invalid sessions, a supplied foreign user ID, and a D1 failure. `/api/events`, `/api/events/:id`, `/api/summary`, and preference writes must be unavailable to unauthenticated callers.
 
 ## Rollback and limitations
 

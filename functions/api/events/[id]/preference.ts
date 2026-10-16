@@ -1,4 +1,4 @@
-import {configured,json,readRanges,readSession,safeOrigin,type Context} from '../../../_lib/core';
+import {configured,json,readSession,safeOrigin,type Context} from '../../../_lib/core';
 const states=new Set(['neutral','wishlisted','not_interested']);
 export async function onRequestPost({request,env,params}:Context){
   if(!configured(env))return json({error:'Backend not configured'},503);
@@ -8,8 +8,8 @@ export async function onRequestPost({request,env,params}:Context){
   const id=params.id,state=data.state,requestId=data.requestId;
   if(typeof id!=='string'||!id||id.length>250||typeof state!=='string'||!states.has(state)||typeof requestId!=='string'||!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:'Invalid event, preference or request ID'},400);
   try{
-    const [master]=await readRanges(env,['Events_Master!A1:A']);
-    if(!master.slice(1).some(x=>x[0]===id))return json({error:'Event not found'},404);
+    const event=await env.DB!.prepare('SELECT event_id FROM catalogue_events WHERE event_id=?').bind(id).first<{event_id:string}>();
+    if(!event)return json({error:'Event not found'},404);
     const prior=await env.DB!.prepare('SELECT event_id,state FROM preference_requests WHERE user_id=? AND request_id=?').bind(session.sub,requestId).first<{event_id:string;state:string}>();
     if(prior){if(prior.event_id!==id||prior.state!==state)return json({error:'Duplicate request ID with different parameters'},409);return json({state,duplicate:true});}
     const savedAt=new Date().toISOString();

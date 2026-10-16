@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run check
+      - run: npm run check:pipeline
       - run: npm run test
       - run: npm run build
         env:
