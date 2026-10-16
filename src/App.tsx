@@ -15,10 +15,12 @@ const sortOptions: {id:Sort;label:string;description:string}[]=[
 ];
 const calendarWeekdays=['M','T','W','T','F','S','S'];
 const dateMonthLabel=(month:Date)=>new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric',timeZone:'UTC'}).format(month);
-function DatePicker({value,onChange}:{value:string|null;onChange:(date:string|null)=>void}){
+type DateRange={start:string;end:string};
+function DatePicker({value,onChange}:{value:DateRange|null;onChange:(range:DateRange|null)=>void}){
   const [open,setOpen]=useState(false);
+  const [pendingStart,setPendingStart]=useState<string|null>(null);
   const [month,setMonth]=useState(()=>{
-    const initial=value||todayIST();
+    const initial=value?.start||todayIST();
     const date=new Date(`${initial}T12:00:00Z`);
     return new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1,12));
   });
@@ -38,18 +40,30 @@ function DatePicker({value,onChange}:{value:string|null;onChange:(date:string|nu
     return {day,key:day.toISOString().slice(0,10),inMonth:day.getUTCMonth()===month.getUTCMonth()};
   });
   const moveMonth=(amount:number)=>setMonth(current=>new Date(Date.UTC(current.getUTCFullYear(),current.getUTCMonth()+amount,1,12)));
-  const choose=(date:string|null)=>{onChange(date);setOpen(false)};
+  const choose=(date:string)=>{
+    if(!pendingStart){setPendingStart(date);return}
+    const range=date<pendingStart?{start:date,end:pendingStart}:{start:pendingStart,end:date};
+    onChange(range);setPendingStart(null);setOpen(false);
+  };
+  const clear=()=>{onChange(null);setPendingStart(null);setOpen(false)};
+  const selectedStart=pendingStart||value?.start||null;
+  const selectedEnd=pendingStart?null:value?.end||null;
+  const selectionLabel=pendingStart?`Choose an end date after ${niceDate(pendingStart)}`:value?`${niceDate(value.start)} – ${niceDate(value.end)}`:'Select a start date';
   return <div className="date-picker" ref={rootRef}>
-    <button type="button" className="date-trigger" aria-label={value?`Date: ${niceDate(value)}`:'Date: Upcoming'} aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(current=>!current)}>
-      <CalendarDays size={17} aria-hidden="true"/><span>{value?niceDate(value):'Upcoming'}</span><ChevronDown size={15} aria-hidden="true" className={open?'sort-chevron open':''}/>
+    <button type="button" className="date-trigger" aria-label={value?`Dates: ${niceDate(value.start)} to ${niceDate(value.end)}`:'Dates: Upcoming'} aria-haspopup="dialog" aria-expanded={open} onClick={()=>{if(!open)setPendingStart(null);setOpen(current=>!current)}}>
+      <CalendarDays size={17} aria-hidden="true"/><span>{value?`${niceDate(value.start)} – ${niceDate(value.end)}`:'Upcoming'}</span><ChevronDown size={15} aria-hidden="true" className={open?'sort-chevron open':''}/>
     </button>
-    {open&&<div className="date-popover" role="dialog" aria-label="Choose event date">
+    {open&&<div className="date-popover" role="dialog" aria-label="Choose event date range">
       <div className="calendar-heading"><button type="button" className="calendar-nav" aria-label="Previous month" onClick={()=>moveMonth(-1)}><ChevronLeft size={17}/></button><strong>{dateMonthLabel(month)}</strong><button type="button" className="calendar-nav" aria-label="Next month" onClick={()=>moveMonth(1)}><ChevronRight size={17}/></button></div>
       <div className="calendar-grid" aria-label={dateMonthLabel(month)}>
         {calendarWeekdays.map((day,index)=><span className="calendar-weekday" key={`${day}-${index}`}>{day}</span>)}
-        {days.map(({day,key,inMonth})=><button type="button" key={key} aria-label={new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(day)} aria-pressed={value===key} className={'calendar-day '+(!inMonth?'outside':'')+(value===key?' selected':'')+(key===todayIST()?' today':'')} onClick={()=>choose(key)}>{day.getUTCDate()}</button>)}
+        {days.map(({day,key,inMonth})=>{
+          const inRange=Boolean(selectedStart&&selectedEnd&&key>=selectedStart&&key<=selectedEnd);
+          const endpoint=key===selectedStart||key===selectedEnd;
+          return <button type="button" key={key} aria-label={new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(day)} aria-pressed={endpoint} className={'calendar-day '+(!inMonth?'outside':'')+(inRange?' in-range':'')+(endpoint?' selected':'')+(key===todayIST()?' today':'')} onClick={()=>choose(key)}>{day.getUTCDate()}</button>;
+        })}
       </div>
-      <div className="calendar-footer"><span>{value?niceDate(value):'Showing upcoming events'}</span>{value&&<button type="button" onClick={()=>choose(null)}>Clear date</button>}</div>
+      <div className="calendar-footer"><span>{selectionLabel}</span>{(value||pendingStart)&&<button type="button" onClick={clear}>Clear dates</button>}</div>
     </div>}
   </div>;
 }
@@ -179,7 +193,7 @@ export default function App(){
   const [events,setEvents]=useState<Concert[]>(()=>clientSheetsEnabled()?[]:seedConcerts(getLocalPreferences()));
   const [mode,setMode]=useState<Mode>('loading');const [auth,setAuth]=useState<AuthResponse>({authenticated:false,configured:false});
   const [tab,setTab]=useState<Tab>('discover');const [search,setSearch]=useState('');const [genre,setGenre]=useState('All genres');const [sort,setSort]=useState<Sort>('soonest');
-  const [dateFilter,setDateFilter]=useState<DateFilter>('upcoming');const [selectedDate,setSelectedDate]=useState<string|null>(null);const [loading,setLoading]=useState(false);const [busy,setBusy]=useState<string>('');const [detailId,setDetailId]=useState<string|null>(null);const [message,setMessage]=useState('');const [lastSync,setLastSync]=useState('');const [menu,setMenu]=useState(false);
+  const [dateFilter,setDateFilter]=useState<DateFilter>('upcoming');const [selectedRange,setSelectedRange]=useState<DateRange|null>(null);const [loading,setLoading]=useState(false);const [busy,setBusy]=useState<string>('');const [detailId,setDetailId]=useState<string|null>(null);const [message,setMessage]=useState('');const [lastSync,setLastSync]=useState('');const [menu,setMenu]=useState(false);
   const showMessage=(s:string)=>{setMessage(s);window.setTimeout(()=>setMessage(''),5000)};
   const load=useCallback(async()=>{setLoading(true);try{if(clientSheetsEnabled()){setMode('client');if(!clientSignedIn() && !(await restoreGoogleClient())){setAuth({authenticated:false,configured:true});setEvents([]);setLastSync('Google sign-in required');return;}const current=await getGoogleClientEvents();setEvents(current);setAuth({authenticated:true,configured:true,email:clientAccount()});setLastSync('Live Google Sheets · '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'}));return;}const session=await fetch('/api/me',{credentials:'include'});if(!session.ok)throw Error('backend not configured');const me:AuthResponse=await session.json();setAuth(me);if(!me.configured){setMode('preview');setEvents(seedConcerts(getLocalPreferences()));setLastSync('Snapshot · 13 Oct 2026');return}if(!me.authenticated){setMode('live');setEvents([]);return}const res=await fetch('/api/events',{credentials:'include'});if(!res.ok)throw Error('Failed to fetch events');const json=await res.json() as {events:Concert[];lastSynced?:string};setEvents(json.events);setMode('live');setLastSync(json.lastSynced||'Live Google Sheets')}catch(e){if(clientSheetsEnabled()){setMode('client');setAuth({authenticated:clientSignedIn(),configured:true,email:clientAccount()});setEvents([]);setLastSync('Google Sheets unavailable');showMessage(e instanceof Error?e.message:'Google Sheets unavailable')}else{setMode('preview');setEvents(seedConcerts(getLocalPreferences()));setLastSync('Snapshot · 13 Oct 2026')}}finally{setLoading(false)}},[]);
   useEffect(()=>{void load()},[load]);
@@ -195,17 +209,17 @@ export default function App(){
   const filtered=useMemo(()=>{
     const needle=search.trim().toLowerCase();let list=applyTab(events,tab).filter(e=>{
       if(genre!=='All genres'&&genreGroup(e.genre,e.subgenres.join(' '))!==genre)return false;
-      if(selectedDate&&e.date!==selectedDate)return false;
+      if(selectedRange&&(e.date<selectedRange.start||e.date>selectedRange.end))return false;
       if(!matchesDateFilter(e.date,dateFilter))return false;
       return !needle||[e.name,e.artists,e.genre,e.venue,e.area,e.subgenres.join(' '),e.tributeTo].join(' ').toLowerCase().includes(needle);
     });
     if(sort==='newest')list=list.sort((a,b)=>b.firstSeen.localeCompare(a.firstSeen)||compareConcerts(a,b));
     else if(sort==='relevance')list=list.sort(compareRelevance);else list=list.sort(compareConcerts);
     return list;
-  },[events,tab,search,genre,sort,dateFilter,selectedDate]);
+  },[events,tab,search,genre,sort,dateFilter,selectedRange]);
   const eventWord=filtered.length===1?'event':'events';
-  const viewCountLabel=selectedDate?`${filtered.length} ${eventWord} · ${niceDate(selectedDate)}`:`${filtered.length} upcoming ${eventWord}`;
-  const hasNonDefaultFilters=Boolean(search.trim())||genre!=='All genres'||selectedDate!==null||dateFilter!=='upcoming'||sort!=='soonest';
+  const viewCountLabel=selectedRange?`${filtered.length} ${eventWord} · ${niceDate(selectedRange.start)} – ${niceDate(selectedRange.end)}`:`${filtered.length} upcoming ${eventWord}`;
+  const hasNonDefaultFilters=Boolean(search.trim())||genre!=='All genres'||selectedRange!==null||dateFilter!=='upcoming'||sort!=='soonest';
   const detail=events.find(e=>e.id===detailId);const checkingSession=mode==='client'&&loading&&!auth.authenticated;const authRequired=(mode==='live'||mode==='client')&&!auth.authenticated&&!checkingSession;
   return <div className="site-shell">
     <header className="site-header"><div className="header-inner"><a className="brand" href="/" onClick={e=>{e.preventDefault();setTab('discover')}}><div className="brand-icon"><Music2 size={24}/></div><div><strong>BENGALURU <em>LIVE</em></strong><small>YOUR CITY. YOUR MUSIC.</small></div></a><nav className="desktop-nav" aria-label="Main navigation">{navMeta.map(x=><button className={tab===x.id?'selected':''} key={x.id} onClick={()=>{setTab(x.id);setMenu(false)}}><x.icon size={16}/>{label[x.id]}{x.id!=='discover'&&counts[x.id]>0&&<span className="nav-count">{counts[x.id]}</span>}</button>)}</nav><div className="header-right"><span className={'sync-dot '+(mode==='live'||mode==='client'?'online':'')}/><span className="sync-label">{mode==='live'||mode==='client'?'Live sheet':'Preview'}</span>{(mode==='client'||mode==='live')&&auth.authenticated&&<button className="refresh-btn logout-btn" onClick={async()=>{try{if(mode==='client'){clientLogout()}else{const res=await fetch('/api/auth/logout',{method:'POST',credentials:'include'});if(!res.ok)throw Error('Sign out failed')}setAuth(current=>({...current,authenticated:false,email:undefined}));setEvents([]);setLastSync('Google sign-in required')}catch(e){showMessage(e instanceof Error?e.message:'Sign out failed')}}} aria-label="Sign out" title="Sign out">Sign out</button>}<button className="refresh-btn" onClick={()=>void load()} aria-label="Refresh events" title="Refresh events"><RefreshCcw size={17} className={loading?'spinning':''}/></button><button className="mobile-menu" onClick={()=>setMenu(!menu)} aria-label="Toggle navigation"><Menu size={20}/></button></div></div>{menu&&<nav className="mobile-drawer">{navMeta.map(x=><button key={x.id} onClick={()=>{setTab(x.id);setMenu(false)}}>{label[x.id]} <span>{counts[x.id]}</span></button>)}</nav>}</header>
@@ -217,11 +231,11 @@ export default function App(){
         {authRequired&&(mode==='client'?<div className="login-card"><Music2 size={32}/><h2>Sign in to your concert collection</h2><p>Authorize your Google account to view events and save preferences in your existing private spreadsheet.</p><button className="primary-action" onClick={async()=>{try{await authorizeGoogleClient();await load()}catch(e){showMessage(e instanceof Error?e.message:'Sign-in failed')}}}>Continue with Google <ArrowRight size={16}/></button><p className="fineprint">Your short-lived Google session is saved in this tab to survive refreshes. It expires automatically; only the concert tracker is updated.</p></div>:<LoginGate onChange={()=>void load()}/>)}
         {!authRequired&&!checkingSession&&<>
           <div className="section-title"><div><div className="eyebrow subtle">YOUR CONCERT COLLECTION</div><h2>{tab==='discover'?'Explore the music':tab==='wishlist'?'Your wishlist':'Not interested'}</h2><p>{tab==='discover'?'Discover what’s playing around the city. Save what you love.':tab==='wishlist'?'All the shows you have your eye on, in one place.':'Concerts you passed on. Nothing is deleted; restore any time.'}</p></div><div className="view-count">{viewCountLabel}</div></div>
-          <div className="toolbar"><label className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search artists, concerts, venues..." aria-label="Search concerts"/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch('')}><X size={15}/></button>}</label><DatePicker value={selectedDate} onChange={date=>{setSelectedDate(date);setDateFilter(date?'date':'upcoming')}}/><div className="sort-control"><span id="sort-label">Sort by</span><SortPicker value={sort} onChange={setSort}/></div></div>
-          {hasNonDefaultFilters&&<div className="date-toolbar"><button type="button" className="reset-filters" onClick={()=>{setSearch('');setGenre('All genres');setSelectedDate(null);setDateFilter('upcoming');setSort('soonest')}}>Clear filters <X size={14}/></button></div>}
+          <div className="toolbar"><label className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search artists, concerts, venues..." aria-label="Search concerts"/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch('')}><X size={15}/></button>}</label><DatePicker value={selectedRange} onChange={range=>{setSelectedRange(range);setDateFilter(range?'date':'upcoming')}}/><div className="sort-control"><span id="sort-label">Sort by</span><SortPicker value={sort} onChange={setSort}/></div></div>
+          {hasNonDefaultFilters&&<div className="date-toolbar"><button type="button" className="reset-filters" onClick={()=>{setSearch('');setGenre('All genres');setSelectedRange(null);setDateFilter('upcoming');setSort('soonest')}}>Clear filters <X size={14}/></button></div>}
           <div className="filters-row"><div className="genre-scroll"><SlidersHorizontal size={17} className="filter-icon"/>{genres.map(g=><button key={g} className={'genre-pill '+(g===genre?'active':'')} onClick={()=>setGenre(g)}>{g}</button>)}</div></div>
           <div className="list-settings"><span>{lastSync}</span></div>
-          {filtered.length>0?<div className="event-grid">{filtered.map(e=><ConcertCard key={e.id} event={e} busy={busy===e.id} onPref={update} onDetail={x=>setDetailId(x.id)}/>)}</div>:<div className="empty-state"><div className="empty-icon">{tab==='wishlist'?<Heart size={31}/>:tab==='not_interested'?<EyeOff size={31}/>:<Search size={31}/>}</div><h3>{tab==='wishlist'?'Your wishlist is waiting':tab==='not_interested'?'Nothing dismissed yet':'No concerts found'}</h3><p>{tab==='wishlist'?'Save concerts from Discover and they will appear here.':tab==='not_interested'?'Events you mark as not interested will be here, ready to restore.':'Adjust your search, genre or date filters to see more concerts.'}</p><button onClick={()=>{setTab('discover');setSearch('');setGenre('All genres');setSelectedDate(null);setDateFilter('upcoming')}}>Explore concerts <ArrowRight size={16}/></button></div>}
+          {filtered.length>0?<div className="event-grid">{filtered.map(e=><ConcertCard key={e.id} event={e} busy={busy===e.id} onPref={update} onDetail={x=>setDetailId(x.id)}/>)}</div>:<div className="empty-state"><div className="empty-icon">{tab==='wishlist'?<Heart size={31}/>:tab==='not_interested'?<EyeOff size={31}/>:<Search size={31}/>}</div><h3>{tab==='wishlist'?'Your wishlist is waiting':tab==='not_interested'?'Nothing dismissed yet':'No concerts found'}</h3><p>{tab==='wishlist'?'Save concerts from Discover and they will appear here.':tab==='not_interested'?'Events you mark as not interested will be here, ready to restore.':'Adjust your search, genre or date filters to see more concerts.'}</p><button onClick={()=>{setTab('discover');setSearch('');setGenre('All genres');setSelectedRange(null);setDateFilter('upcoming')}}>Explore concerts <ArrowRight size={16}/></button></div>}
           <section className="bottom-callout"><div><span className="eyebrow">NEVER MISS A NOTE</span><h2>The city keeps playing.</h2><p>New concerts are researched every morning at 9 AM IST. Check back for new discoveries.</p></div><a href={SHEET_URL} target="_blank" rel="noopener noreferrer">View event database <ExternalLink size={17}/></a></section>
         </>}
       </div>

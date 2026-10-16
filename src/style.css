@@ -51,6 +51,7 @@
 .calendar-day:hover{background:#f1f5ef}
 .calendar-day.outside{color:#bac2b9}
 .calendar-day.today{box-shadow:inset 0 0 0 1px #a6bbaa}
+.calendar-day.in-range,.calendar-day.in-range:hover{background:#eaf1e9;color:#345746}
 .calendar-day.selected,.calendar-day.selected:hover{background:#2c5446;color:#fff;box-shadow:none}
 .calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #edf0e9;margin-top:10px;padding-top:9px;color:#8a968c;font-size:10px}
 .calendar-footer button{border:0;background:transparent;color:#4b765a;font-size:10px;font-weight:800;padding:4px 2px}
