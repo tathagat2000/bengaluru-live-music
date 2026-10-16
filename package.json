@@ -9,7 +9,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "check": "tsc --noEmit",
-    "deploy": "npm run build && wrangler d1 migrations apply bengaluru-live-preferences --remote --env production --config wrangler.toml && wrangler pages deploy dist --project-name bengaluru-live-music --branch main --config wrangler.toml"
+    "deploy": "npm run build && wrangler d1 migrations apply bengaluru-live-preferences --remote --env production --config wrangler.toml && wrangler pages deploy dist --project-name bengaluru-live-music --branch main"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
