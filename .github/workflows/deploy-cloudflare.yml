@@ -1,0 +1,38 @@
+name: Deploy Bengaluru Live to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm install --no-audit --no-fund
+
+      - run: npm run test
+
+      - run: npm run build
+        env:
+          VITE_CLIENT_SHEETS: 'false'
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy dist --project-name bengaluru-live-music --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

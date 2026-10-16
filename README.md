@@ -47,9 +47,9 @@ This is the original recommended secure architecture and remains implemented in 
 
 1. Create a dedicated Google Cloud **service account** and enable Sheets API. Share the existing Sheet only with that service account, giving editor permission.
 2. Create a Google OAuth **Web** client for Google Identity Services. Add the Cloudflare Pages domain as an Authorized JavaScript origin.
-3. Deploy the repository as a Cloudflare Pages project (build command `npm run build`, output directory `dist`).
-4. Set `VITE_CLIENT_SHEETS=false` and `VITE_GOOGLE_CLIENT_ID=<clientID>` **at build time**.
-5. Configure server-side secrets: `GOOGLE_CLIENT_ID`, `ALLOWED_EMAIL=tathagat2001@gmail.com`, `SPREADSHEET_ID=1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc`, `GOOGLE_SERVICE_ACCOUNT_JSON=<complete JSON key>`, and `SESSION_SECRET=<64+ random characters>`.
+3. Create a Cloudflare Pages project named `bengaluru-live-music` with production branch `main`. The GitHub Actions workflow builds the site and deploys `dist` with Wrangler on every push to `main`; you do not need to connect Cloudflare's Git integration.
+4. In GitHub repository **Settings → Secrets and variables → Actions → Secrets**, add `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages edit permission) and `CLOUDFLARE_ACCOUNT_ID`. The workflow already builds with `VITE_CLIENT_SHEETS=false` and uses the `GOOGLE_OAUTH_CLIENT_ID` Actions variable from option A. It can also be started manually from **Actions → Deploy Bengaluru Live to Cloudflare Pages → Run workflow**.
+5. In the Cloudflare Pages project's **Settings → Variables and Secrets** for the **Production** environment, configure `GOOGLE_CLIENT_ID`, `ALLOWED_EMAIL=tathagat2001@gmail.com`, `SPREADSHEET_ID=1liSjcztKGKxfuFisWGNK23YT_L0oQgq9IOQvZOp7XLc`, `GOOGLE_SERVICE_ACCOUNT_JSON=<complete JSON key>`, and `SESSION_SECRET=<64+ random characters>`.
 6. Verify `GET /api/health`, Google login, authenticated `GET /api/events` and a preference write. The backend validates Google ID tokens via Google's public signing keys, authenticates a secure HMAC session cookie, uses same-origin checks and limits mutations to the preference log.
 
 **Do not commit service-account JSON or session secrets to Git.** Never make the Google Sheet public just to bypass authentication.
