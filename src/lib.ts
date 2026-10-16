@@ -35,11 +35,12 @@ export function applyTab(events: Concert[], tab: Tab):Concert[]{
     return e.preference==='not_interested';
   });
 }
-export type DateFilter = 'upcoming'|'past'|'all'|'week'|'month';
+export type DateFilter = 'upcoming'|'past'|'all'|'week'|'month'|'date';
 export function matchesDateFilter(date:string,filter:DateFilter,today=todayIST()):boolean{
   if(filter==='all')return true;
   if(filter==='past')return Boolean(date)&&date<today;
   if(filter==='upcoming')return !date||date>=today;
+  if(filter==='date')return true;
   if(filter==='week'){
     const end=new Date(`${today}T00:00:00Z`);end.setUTCDate(end.getUTCDate()+7);
     return date>=today&&date<=end.toISOString().slice(0,10);
