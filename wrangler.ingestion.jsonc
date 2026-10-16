@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bengaluru-live-ingestion",
+  "main": "workers/ingestion.ts",
+  "compatibility_date": "2026-10-15",
+  "vars": {
+    "GITHUB_REPOSITORY": "tathagat2000/bengaluru-live-music",
+    "SOURCE_USER_AGENT": "BengaluruLiveDiscovery/1.0 (+https://bengaluru-live-music.pages.dev)"
+  },
+  "workflows": [{
+    "name": "bengaluru-live-ingestion-workflow",
+    "binding": "EVENT_INGESTION",
+    "class_name": "EventIngestionWorkflow",
+    "schedules": ["30 3 * * *"]
+  }],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "bengaluru-live-preferences",
+    "database_id": "26863a3f-52a2-485f-8bd8-a4f1f3314409"
+  }],
+  "r2_buckets": [{
+    "binding": "EVIDENCE_BUCKET",
+    "bucket_name": "bengaluru-live-evidence"
+  }],
+  "queues": {
+    "producers": [{ "binding": "SOURCE_QUEUE", "queue": "bengaluru-live-source-fetch" }],
+    "consumers": [{ "queue": "bengaluru-live-source-fetch", "max_batch_size": 10, "max_retries": 3 }]
+  }
+}

@@ -8,15 +8,20 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc -p tsconfig.functions.json",
+    "check:pipeline": "tsc -p tsconfig.pipeline.json",
+    "migrate:legacy": "node scripts/migrate-legacy-preferences.mjs",
+    "migrate:catalogue": "node scripts/migrate-catalogue.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name bengaluru-live-music"
   },
   "dependencies": {
+    "@cursor/sdk": "^1.0.37",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261015.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.0",

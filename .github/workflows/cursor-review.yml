@@ -1,0 +1,32 @@
+name: Review event candidates with Cursor
+
+on:
+  repository_dispatch:
+    types: [bengaluru-review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bengaluru-cursor-review-${{ github.event.client_payload.runId }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/cursor-review.mjs
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CURSOR_MODEL_ID: ${{ vars.CURSOR_MODEL_ID }}
+          INGESTION_API_URL: ${{ vars.INGESTION_API_URL }}
+          INGESTION_SHARED_SECRET: ${{ secrets.INGESTION_SHARED_SECRET }}
+          INGESTION_RUN_ID: ${{ github.event.client_payload.runId }}
+          INGESTION_BATCH_ID: ${{ github.event.client_payload.batchId }}

@@ -6,6 +6,7 @@ export type Concert = {
   id: string;
   name: string;
   artists: string;
+  eventCategory: string;
   genre: string;
   subgenres: string[];
   format: string;

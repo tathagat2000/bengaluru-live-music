@@ -1,4 +1,4 @@
-import {appendPreference,configured,json,parseRecords,readRanges,readSession,safeOrigin,type Context} from '../../../_lib/core';
+import {configured,json,readSession,safeOrigin,type Context} from '../../../_lib/core';
 const states=new Set(['neutral','wishlisted','not_interested']);
 export async function onRequestPost({request,env,params}:Context){
   if(!configured(env))return json({error:'Backend not configured'},503);
@@ -8,12 +8,18 @@ export async function onRequestPost({request,env,params}:Context){
   const id=params.id,state=data.state,requestId=data.requestId;
   if(typeof id!=='string'||!id||id.length>250||typeof state!=='string'||!states.has(state)||typeof requestId!=='string'||!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:'Invalid event, preference or request ID'},400);
   try{
-    const [master,log]=await readRanges(env,['Events_Master!A1:A','User_Preferences!A1:F']);
-    if(!master.slice(1).some(x=>x[0]===id))return json({error:'Event not found'},404);
-    const rows=parseRecords(log),prior=rows.find(x=>x.Client_Request_ID===requestId&&x.User_ID===session.sub);
-    if(prior){if(prior.Event_ID!==id||prior.New_State!==state)return json({error:'Duplicate request ID with different parameters'},409);return json({state,duplicate:true})}
-    const now=new Date().toISOString();
-    await appendPreference(env,[crypto.randomUUID(),id,session.sub,state,now,requestId]);
-    return json({state,savedAt:now});
+    const event=await env.DB!.prepare('SELECT event_id FROM catalogue_events WHERE event_id=?').bind(id).first<{event_id:string}>();
+    if(!event)return json({error:'Event not found'},404);
+    const prior=await env.DB!.prepare('SELECT event_id,state FROM preference_requests WHERE user_id=? AND request_id=?').bind(session.sub,requestId).first<{event_id:string;state:string}>();
+    if(prior){if(prior.event_id!==id||prior.state!==state)return json({error:'Duplicate request ID with different parameters'},409);return json({state,duplicate:true});}
+    const savedAt=new Date().toISOString();
+    const mutation=state==='neutral'
+      ?env.DB!.prepare('DELETE FROM user_preferences WHERE user_id=? AND event_id=?').bind(session.sub,id)
+      :env.DB!.prepare('INSERT INTO user_preferences(user_id,event_id,state,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,event_id) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at').bind(session.sub,id,state,savedAt);
+    await env.DB!.batch([
+      env.DB!.prepare('INSERT OR IGNORE INTO preference_requests(user_id,request_id,event_id,state,created_at) VALUES(?,?,?,?,?)').bind(session.sub,requestId,id,state,savedAt),
+      mutation,
+    ]);
+    return json({state,savedAt});
   }catch(e){return json({error:e instanceof Error?e.message:'Write failed'},502)}
 }

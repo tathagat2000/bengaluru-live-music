@@ -26,3 +26,4 @@
 .artist-names span:not(:last-child):after{content:' ·';margin-right:1px;color:#a6b4a7}
 .modal-featured-artists{padding:14px;margin:8px 0 19px}.modal-featured-artists .artist-names span{font-size:14px}
 @media(max-width:570px){.event-gallery{height:190px}.gallery-large{height:240px}.gallery-source{font-size:9px;max-width:65%}}
+.bottom-callout-note{color:#547361;font-size:12px;font-weight:800;white-space:nowrap}
