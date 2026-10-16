@@ -28,12 +28,23 @@ export function getLocalPreferences(): Record<string,InterestState> {
   try { const item = JSON.parse(localStorage.getItem(PREF_KEY)||'{}'); return item && typeof item==='object' ? item : {}; } catch { return {}; }
 }
 export function saveLocalPreferences(prefs:Record<string,InterestState>) { localStorage.setItem(PREF_KEY,JSON.stringify(prefs)); }
-export function applyTab(events: Concert[], tab: Tab, includePast:boolean):Concert[]{
+export function applyTab(events: Concert[], tab: Tab):Concert[]{
   return events.filter(e => {
-    if(tab==='discover') return e.preference!=='not_interested' && (includePast || !isPast(e.date));
-    if(tab==='wishlist') return e.preference==='wishlisted' && (includePast || !isPast(e.date));
-    return e.preference==='not_interested' && (includePast || !isPast(e.date));
+    if(tab==='discover') return e.preference!=='not_interested';
+    if(tab==='wishlist') return e.preference==='wishlisted';
+    return e.preference==='not_interested';
   });
+}
+export type DateFilter = 'upcoming'|'past'|'all'|'week'|'month';
+export function matchesDateFilter(date:string,filter:DateFilter,today=todayIST()):boolean{
+  if(filter==='all')return true;
+  if(filter==='past')return Boolean(date)&&date<today;
+  if(filter==='upcoming')return !date||date>=today;
+  if(filter==='week'){
+    const end=new Date(`${today}T00:00:00Z`);end.setUTCDate(end.getUTCDate()+7);
+    return date>=today&&date<=end.toISOString().slice(0,10);
+  }
+  return date.slice(0,7)===today.slice(0,7);
 }
 export function genreGroup(genre:string,sub=''):string {
   const x=(genre+' '+sub).toLowerCase();
