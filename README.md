@@ -7,7 +7,7 @@ Bengaluru Live is a React live-events discovery site backed by a Cloudflare D1 c
 - React 19 + Vite frontend on Cloudflare Pages.
 - Pages Functions verify Google Identity Services ID tokens and issue an HttpOnly, Secure, SameSite session cookie.
 - Cloudflare Workers fetch public event sources, retain evidence snapshots in R2, and write canonical events and images to D1.
-- Cursor SDK agents run in GitHub Actions and review only structured candidate batches; they never write production data directly.
+- Codex app-server, authenticated with a ChatGPT-plan OAuth session on a dedicated self-hosted GitHub Actions runner, reviews only structured candidate batches; it never writes production data directly.
 - D1 stores preferences keyed by the Google `sub`, never by a browser-supplied user ID or email.
 - The legacy browser-to-Sheets path and its single-account allowlist are removed from the production code path.
 
@@ -38,7 +38,7 @@ Configure Cloudflare Pages with `npm run build` and `dist`, then set the build v
 
 Do not configure `ALLOWED_EMAIL`, `ALLOWED_EMAILS`, or `VITE_CLIENT_SHEETS`. Any valid, verified Google account is intentionally accepted. Share the private Sheet with the service account as Viewer only.
 
-See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for resource setup, migrations, cutover, verification, and rollback. See [docs/INGESTION_PIPELINE.md](docs/INGESTION_PIPELINE.md) for the scheduled Worker, queue, R2, and Cursor SDK runner. `.github/workflows/ci.yml` validates pull requests and deploys `main` through Wrangler when the documented GitHub secrets are configured.
+See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for resource setup, migrations, cutover, verification, and rollback. See [docs/INGESTION_PIPELINE.md](docs/INGESTION_PIPELINE.md) for the scheduled Worker, queue, R2, and Codex app-server runner setup. `.github/workflows/ci.yml` validates pull requests and deploys `main` through Wrangler when the documented GitHub secrets are configured.
 
 ## API
 

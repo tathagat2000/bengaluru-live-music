@@ -1,4 +1,4 @@
-name: Review event candidates with Cursor
+name: Review event candidates with Codex
 
 on:
   repository_dispatch:
@@ -7,13 +7,15 @@ on:
 permissions:
   contents: read
 
+# Serialize reviews so renewable OAuth refresh tokens are never rotated concurrently.
 concurrency:
-  group: bengaluru-cursor-review-${{ github.event.client_payload.runId }}
+  group: bengaluru-codex-review
   cancel-in-progress: false
 
 jobs:
   review:
-    runs-on: ubuntu-latest
+    # This persistent runner owns the protected ChatGPT-plan OAuth credentials.
+    runs-on: [self-hosted, codex-plan]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +24,11 @@ jobs:
           node-version: '22.13'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node scripts/cursor-review.mjs
+      - run: node scripts/codex-review.mjs
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          CURSOR_MODEL_ID: ${{ vars.CURSOR_MODEL_ID }}
+          CODEX_CREDENTIALS_FILE: ${{ vars.CODEX_CREDENTIALS_FILE }}
+          CODEX_BIN: ${{ vars.CODEX_BIN }}
+          CODEX_MODEL_ID: ${{ vars.CODEX_MODEL_ID }}
           INGESTION_API_URL: ${{ vars.INGESTION_API_URL }}
           INGESTION_SHARED_SECRET: ${{ secrets.INGESTION_SHARED_SECRET }}
           INGESTION_RUN_ID: ${{ github.event.client_payload.runId }}

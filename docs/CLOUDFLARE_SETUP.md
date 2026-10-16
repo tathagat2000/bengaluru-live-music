@@ -1,6 +1,6 @@
 # Cloudflare deployment and operations
 
-The production application is Cloudflare Pages + Pages Functions backed by a D1 event catalogue. The browser only receives a Google ID-token sign-in flow and a secure session cookie; it never receives service-account or Cursor credentials. The original Sheet remains a read-only historical backup. The scheduled ingestion Worker is documented in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md).
+The production application is Cloudflare Pages + Pages Functions backed by a D1 event catalogue. The browser only receives a Google ID-token sign-in flow and a secure session cookie; it never receives service-account or Codex OAuth credentials. The original Sheet remains a read-only historical backup. The scheduled ingestion Worker is documented in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md).
 
 ## Required resources
 
@@ -47,7 +47,7 @@ npx wrangler d1 migrations apply bengaluru-live-preferences --remote
 
 Use the database ID returned by Cloudflare when configuring the Pages D1 binding. Do not create a second database if the project already has one.
 
-GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets, plus `GOOGLE_OAUTH_CLIENT_ID` as a repository variable. The ingestion Worker additionally needs `INGESTION_SHARED_SECRET`, `GITHUB_DISPATCH_TOKEN`, and `GITHUB_REPOSITORY`; configure these with `wrangler secret put` as described in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md). Runtime secrets remain out of Git and workflow logs.
+GitHub Actions needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets, plus `GOOGLE_OAUTH_CLIENT_ID` as a repository variable. The ingestion Worker additionally needs `INGESTION_SHARED_SECRET`, `GITHUB_DISPATCH_TOKEN`, and `GITHUB_REPOSITORY`; configure these with `wrangler secret put` as described in [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md). The Codex review job additionally requires a dedicated persistent self-hosted runner and its protected local ChatGPT-plan credential file. Runtime secrets remain out of Git and workflow logs.
 
 ## Legacy preference migration
 

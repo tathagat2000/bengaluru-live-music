@@ -12,10 +12,11 @@
     "check:pipeline": "tsc -p tsconfig.pipeline.json",
     "migrate:legacy": "node scripts/migrate-legacy-preferences.mjs",
     "migrate:catalogue": "node scripts/migrate-catalogue.mjs",
+    "codex:auth": "node scripts/codex-plan-auth.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name bengaluru-live-music"
   },
   "dependencies": {
-    "@cursor/sdk": "^1.0.37",
+    "jose": "^6.2.12",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
