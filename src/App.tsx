@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Compass, ExternalLink, EyeOff, Heart, MapPin, Menu, Music2, RefreshCcw, Search, SlidersHorizontal, Sparkles, Ticket, X } from 'lucide-react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { ArrowDownUp, ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Compass, ExternalLink, EyeOff, Heart, MapPin, Menu, Music2, RefreshCcw, Search, SlidersHorizontal, Sparkles, Ticket, X } from 'lucide-react';
 import type { Concert, InterestState, Tab, AuthResponse } from './types';
 import { applyTab, compareConcerts, dateParts, genres, genreGroup, getLocalPreferences, isPast, matchesDateFilter, niceDate, priceLabel, saveLocalPreferences, SHEET_URL, timeLabel, validUrl, type DateFilter } from './lib';
 import { seedConcerts } from './seed';
@@ -7,6 +8,11 @@ import {authorizeGoogleClient,clientAccount,clientLogout,clientSheetsEnabled,cli
 
 type Mode='loading'|'live'|'client'|'preview';
 type Sort='soonest'|'newest'|'relevance';
+const sortOptions: {id:Sort;label:string;description:string}[]=[
+  {id:'soonest',label:'Soonest first',description:'Events happening next'},
+  {id:'relevance',label:'Best match',description:'Most relevant to your search'},
+  {id:'newest',label:'Recently added',description:'Latest discoveries first'}
+];
 const dateFilters: {id:DateFilter;label:string}[]=[
   {id:'upcoming',label:'Upcoming'},
   {id:'week',label:'Next 7 days'},
@@ -14,6 +20,46 @@ const dateFilters: {id:DateFilter;label:string}[]=[
   {id:'past',label:'Past events'},
   {id:'all',label:'All events'}
 ];
+function SortPicker({value,onChange}:{value:Sort;onChange:(value:Sort)=>void}){
+  const [open,setOpen]=useState(false);
+  const [activeIndex,setActiveIndex]=useState(()=>sortOptions.findIndex(option=>option.id===value));
+  const triggerRef=useRef<HTMLButtonElement>(null);
+  const optionRefs=useRef<(HTMLDivElement|null)[]>([]);
+  const selectedIndex=sortOptions.findIndex(option=>option.id===value);
+  useEffect(()=>{if(open)optionRefs.current[activeIndex]?.focus()},[open,activeIndex]);
+  useEffect(()=>{
+    if(!open)return;
+    const closeOutside=(event:PointerEvent)=>{if(!(event.target instanceof Element)||!event.target.closest('.sort-picker'))setOpen(false)};
+    document.addEventListener('pointerdown',closeOutside);
+    return()=>document.removeEventListener('pointerdown',closeOutside);
+  },[open]);
+  const show=(index=selectedIndex)=>{setActiveIndex(index);setOpen(true)};
+  const close=(restoreFocus=false)=>{setOpen(false);if(restoreFocus)triggerRef.current?.focus()};
+  const choose=(option:Sort)=>{onChange(option);close(true)};
+  const move=(index:number)=>setActiveIndex((index+sortOptions.length)%sortOptions.length);
+  const handleTriggerKeyDown=(event:ReactKeyboardEvent<HTMLButtonElement>)=>{
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();show(selectedIndex+(event.key==='ArrowDown'?1:-1));}
+    else if(event.key==='Enter'||event.key===' '){event.preventDefault();open?close():show();}
+  };
+  return <div className="sort-picker">
+    <button ref={triggerRef} type="button" className="sort-trigger" aria-label={`Sort events: ${sortOptions[selectedIndex].label}`} aria-haspopup="listbox" aria-expanded={open} aria-controls="sort-options" onClick={()=>open?close():show()} onKeyDown={handleTriggerKeyDown}>
+      <ArrowDownUp size={17} aria-hidden="true"/><span>{sortOptions[selectedIndex].label}</span><ChevronDown size={15} aria-hidden="true" className={open?'sort-chevron open':''}/>
+    </button>
+    {open&&<div id="sort-options" className="sort-popover" role="listbox" aria-label="Sort events">
+      {sortOptions.map((option,index)=><div key={option.id} ref={element=>{optionRefs.current[index]=element}} id={`sort-option-${option.id}`} className={'sort-option '+(value===option.id?'selected':'')+(activeIndex===index?' focused':'')} role="option" aria-selected={value===option.id} tabIndex={activeIndex===index?0:-1} onClick={()=>choose(option.id)} onKeyDown={event=>{
+        if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();move(index+(event.key==='ArrowDown'?1:-1));}
+        else if(event.key==='Home'){event.preventDefault();setActiveIndex(0)}
+        else if(event.key==='End'){event.preventDefault();setActiveIndex(sortOptions.length-1)}
+        else if(event.key==='Enter'||event.key===' '){event.preventDefault();choose(option.id)}
+        else if(event.key==='Escape'){event.preventDefault();close(true)}
+        else if(event.key==='Tab')close();
+      }}>
+        <span className="sort-option-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
+        {value===option.id&&<Check size={16} aria-hidden="true"/>}
+      </div>)}
+    </div>}
+  </div>;
+}
 const label:Record<Tab,string>={discover:'Discover',wishlist:'Wishlist',not_interested:'Not interested'};
 const palette:Record<string,{ink:string,background:string,initial:string}>={
   'Classical':{ink:'#885638',background:'linear-gradient(135deg,#e1cdbb,#eddcc9 68%,#c4a486)',initial:'RAAG'},
@@ -138,7 +184,7 @@ export default function App(){
         {authRequired&&(mode==='client'?<div className="login-card"><Music2 size={32}/><h2>Sign in to your concert collection</h2><p>Authorize your Google account to view events and save preferences in your existing private spreadsheet.</p><button className="primary-action" onClick={async()=>{try{await authorizeGoogleClient();await load()}catch(e){showMessage(e instanceof Error?e.message:'Sign-in failed')}}}>Continue with Google <ArrowRight size={16}/></button><p className="fineprint">Your short-lived Google session is saved in this tab to survive refreshes. It expires automatically; only the concert tracker is updated.</p></div>:<LoginGate onChange={()=>void load()}/>)}
         {!authRequired&&!checkingSession&&<>
           <div className="section-title"><div><div className="eyebrow subtle">YOUR CONCERT COLLECTION</div><h2>{tab==='discover'?'Explore the music':tab==='wishlist'?'Your wishlist':'Not interested'}</h2><p>{tab==='discover'?'Discover what’s playing around the city. Save what you love.':tab==='wishlist'?'All the shows you have your eye on, in one place.':'Concerts you passed on. Nothing is deleted; restore any time.'}</p></div><div className="view-count">{viewCountLabel}</div></div>
-          <div className="toolbar"><label className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search artists, concerts, venues..." aria-label="Search concerts"/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch('')}><X size={15}/></button>}</label><label className="sort-control"><span>Sort by</span><div className="select-box"><ArrowDownUp size={17}/><select aria-label="Sort events" value={sort} onChange={e=>setSort(e.target.value as Sort)}><option value="soonest">Soonest first</option><option value="relevance">Best match</option><option value="newest">Recently added</option></select><ChevronDown size={15}/></div></label></div>
+          <div className="toolbar"><label className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search artists, concerts, venues..." aria-label="Search concerts"/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch('')}><X size={15}/></button>}</label><div className="sort-control"><span id="sort-label">Sort by</span><SortPicker value={sort} onChange={setSort}/></div></div>
           <div className="date-toolbar"><div className="date-filter-group" role="group" aria-label="Filter by date"><span className="filter-heading"><CalendarDays size={16}/>Date</span><div className="date-options">{dateFilters.map(filter=><button type="button" key={filter.id} className={'date-option '+(dateFilter===filter.id?'active':'')} aria-pressed={dateFilter===filter.id} onClick={()=>setDateFilter(filter.id)}>{filter.label}</button>)}</div></div>{hasNonDefaultFilters&&<button type="button" className="reset-filters" onClick={()=>{setSearch('');setGenre('All genres');setDateFilter('upcoming');setSort('soonest')}}>Clear filters <X size={14}/></button>}</div>
           <div className="filters-row"><div className="genre-scroll"><SlidersHorizontal size={17} className="filter-icon"/>{genres.map(g=><button key={g} className={'genre-pill '+(g===genre?'active':'')} onClick={()=>setGenre(g)}>{g}</button>)}</div></div>
           <div className="list-settings"><span>{lastSync}</span></div>
