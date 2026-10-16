@@ -8,13 +8,12 @@ describe('concert collection',()=>{
   it('filters rejected concerts only in discovery',()=>{
     const all=seedConcerts();const first=all[0];
     const rows=all.map(e=>({...e,preference:e.id===first.id?'not_interested' as const:e.preference}));
-    expect(applyTab(rows,'discover',true).some(e=>e.id===first.id)).toBe(false);
-    expect(applyTab(rows,'not_interested',true).some(e=>e.id===first.id)).toBe(true);
+    expect(applyTab(rows,'discover').some(e=>e.id===first.id)).toBe(false);
+    expect(applyTab(rows,'not_interested').some(e=>e.id===first.id)).toBe(true);
   });
-  it('preserves wishlist for past shows',()=>{
+  it('preserves wishlist for past shows so date filters can include them',()=>{
     const rows=seedConcerts().map(e=>({...e,date:'2020-01-01',preference:'wishlisted' as const}));
-    expect(applyTab(rows,'wishlist',true)).toHaveLength(22);
-    expect(applyTab(rows,'wishlist',false)).toHaveLength(0);
+    expect(applyTab(rows,'wishlist')).toHaveLength(22);
   });
   it('sorts by date and then time',()=>{
     const [a,b]=seedConcerts();expect([b,a].sort(compareConcerts)[0].id).toBe(a.id);
