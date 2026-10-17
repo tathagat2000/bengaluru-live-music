@@ -30,7 +30,7 @@ export function getLocalPreferences(): Record<string,InterestState> {
 export function saveLocalPreferences(prefs:Record<string,InterestState>) { localStorage.setItem(PREF_KEY,JSON.stringify(prefs)); }
 export function applyTab(events: Concert[], tab: Tab):Concert[]{
   return events.filter(e => {
-    if(tab==='discover') return e.preference!=='not_interested';
+    if(tab==='discover') return e.preference==='neutral';
     if(tab==='wishlist') return e.preference==='wishlisted';
     return e.preference==='not_interested';
   });
