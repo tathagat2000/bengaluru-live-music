@@ -18,9 +18,14 @@ export async function preferenceCounts(db:D1Database,userId:string){
 }
 
 export async function savePreference(db:D1Database,userId:string,eventId:string,state:InterestState){
+  return savePreferences(db,userId,[eventId],state);
+}
+
+export async function savePreferences(db:D1Database,userId:string,eventIds:string[],state:InterestState){
   const savedAt=new Date().toISOString();
-  const result=await db.prepare(`INSERT INTO user_preferences (user_id,event_id,state,updated_at) VALUES (?,?,?,?)
-    ON CONFLICT(user_id,event_id) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at`).bind(userId,eventId,state,savedAt).run();
-  if(!result.success)throw Error('Cloudflare D1 preference write failed');
+  const statements=eventIds.map(eventId=>db.prepare(`INSERT INTO user_preferences (user_id,event_id,state,updated_at) VALUES (?,?,?,?)
+    ON CONFLICT(user_id,event_id) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at`).bind(userId,eventId,state,savedAt));
+  const results=await db.batch(statements);
+  if(results.length!==statements.length||results.some(result=>!result.success))throw Error('Cloudflare D1 preference write failed');
   return savedAt;
 }

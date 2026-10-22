@@ -75,3 +75,19 @@
 .sort-option-copy small{font-size:10px;line-height:1.25;color:#89958b;font-weight:500}
 @media(max-width:780px){.sort-control{min-width:203px}}
 @media(max-width:570px){.sort-control{min-width:0}.sort-trigger{height:45px}.sort-popover{width:min(278px,calc(100vw - 40px))}}
+/* Bulk event selection and preference actions */
+.list-settings{gap:16px;flex-wrap:wrap}
+.selection-controls{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;color:#617269}
+.select-all-control{display:inline-flex;align-items:center;gap:8px;color:#52675a;font-weight:700;cursor:pointer;white-space:nowrap}
+.select-all-control input,.event-select input{width:18px;height:18px;margin:0;accent-color:#2c5446;cursor:pointer}
+.selection-count{font-weight:700;white-space:nowrap}
+.bulk-action,.clear-selection{min-height:36px;border:1px solid #dfe5dc;background:#fff;color:#506558;border-radius:8px;padding:7px 11px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:800;white-space:nowrap}
+.bulk-action:hover,.clear-selection:hover{border-color:#9bb3a2}
+.bulk-action.wishlist{background:#2c5446;border-color:#2c5446;color:#fff}
+.bulk-action.not-interested{background:#ecefe9;border-color:#bcc7b9;color:#56695d}
+.event-select{position:absolute;z-index:4;top:12px;left:12px;width:36px;height:36px;display:grid;place-items:center;background:#ffffffed;border:1px solid #e5e8e1;border-radius:9px;box-shadow:0 2px 8px #0002;cursor:pointer}
+.event-select input{width:20px;height:20px}
+.event-select-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.event-card.selected{border-color:#779b84;box-shadow:0 0 0 2px #779b8440,0 8px 24px #23362912}
+@media(max-width:780px){.list-settings{align-items:flex-start}.selection-controls{justify-content:flex-start;width:100%}}
+@media(max-width:570px){.selection-controls{gap:7px}.bulk-action,.clear-selection{min-height:38px;padding:8px 10px}}

@@ -158,10 +158,10 @@ function ArtistLine({artists,modal=false}:{artists:string;modal?:boolean}){
 }
 function DateTile({date}:{date:string}){const d=dateParts(date);return <div className="date-tile"><span>{d.month}</span><strong>{d.day}</strong><small>{d.weekday}</small></div>}
 function StatusPill({event}:{event:Concert}){let s=event.ticketStatus||'Unknown';if(event.eventStatus==='Cancelled'||event.eventStatus==='Postponed')s=event.eventStatus;const blocked=/sold out|cancelled|postponed|conflicting/i.test(s+' '+event.verification);return <span className={'status-pill '+(blocked?'status-alert':'')}>{s}</span>}
-function ConcertCard({event,onPref,onDetail,busy}:{event:Concert,onPref:(id:string,s:InterestState)=>void,onDetail:(e:Concert)=>void,busy:boolean}){
+function ConcertCard({event,onPref,onDetail,busy,selected,onSelect}:{event:Concert,onPref:(id:string,s:InterestState)=>void,onDetail:(e:Concert)=>void,busy:boolean,selected:boolean,onSelect:(id:string,selected:boolean)=>void}){
   const group=genreGroup(event.genre,event.subgenres.join(' '));const booking=validUrl(event.bookingUrl),source=validUrl(event.sourceUrl);
-  return <article className="event-card">
-    <div className="card-image-wrap"><EventGallery key={event.id} event={event}/><div className="card-date"><DateTile date={event.date}/></div><div className="image-tag">{group}</div></div>
+  return <article className={'event-card '+(selected?'selected':'')}>
+    <div className="card-image-wrap"><EventGallery key={event.id} event={event}/><label className="event-select"><input type="checkbox" checked={selected} disabled={busy} aria-label={`Select ${event.name}`} onChange={e=>onSelect(event.id,e.target.checked)}/><span className="event-select-label">Select event</span></label><div className="card-date"><DateTile date={event.date}/></div><div className="image-tag">{group}</div></div>
     <div className="card-body">
       <div className="card-meta"><span>{niceDate(event.date).toUpperCase()} <b className="dot">·</b> {timeLabel(event.time)}</span><StatusPill event={event}/></div>
       <button className="event-name" onClick={()=>onDetail(event)}>{event.name}</button>
@@ -192,17 +192,19 @@ export default function App(){
   const [mode,setMode]=useState<Mode>('loading');const [auth,setAuth]=useState<AuthResponse>({authenticated:false,configured:false});
   const [tab,setTab]=useState<Tab>('discover');const [search,setSearch]=useState('');const [genre,setGenre]=useState('All genres');const [sort,setSort]=useState<Sort>('soonest');
   const [dateFilter,setDateFilter]=useState<DateFilter>('upcoming');const [selectedRange,setSelectedRange]=useState<DateRange|null>(null);const [loading,setLoading]=useState(false);const [busy,setBusy]=useState<string>('');const [detailId,setDetailId]=useState<string|null>(null);const [message,setMessage]=useState('');const [lastSync,setLastSync]=useState('');const [menu,setMenu]=useState(false);
+  const [selectedIds,setSelectedIds]=useState<Set<string>>(()=>new Set());const [bulkPending,setBulkPending]=useState(false);
+  const selectAllRef=useRef<HTMLInputElement>(null);
   const showMessage=(s:string)=>{setMessage(s);window.setTimeout(()=>setMessage(''),5000)};
   const load=useCallback(async()=>{setLoading(true);try{const session=await fetch('/api/me',{credentials:'include'});if(!session.ok)throw Error('Cloudflare service unavailable');const me:AuthResponse=await session.json();setAuth(me);if(!me.configured){setMode('preview');setEvents(seedConcerts(getLocalPreferences()));setLastSync('Snapshot · 13 Oct 2026');return}if(!me.authenticated){setMode('live');setEvents([]);setLastSync('Google sign-in required');return}const res=await fetch('/api/events',{credentials:'include'});if(!res.ok)throw Error('Failed to load events from Cloudflare');const json=await res.json() as {events:Concert[];lastSynced?:string};setEvents(json.events);setMode('live');setLastSync(json.lastSynced||'Live catalogue · preferences in Cloudflare')}catch(e){setAuth({authenticated:false,configured:true});setMode('live');setEvents([]);setLastSync('Cloudflare service unavailable');showMessage(e instanceof Error?e.message:'Cloudflare service unavailable')}finally{setLoading(false)}},[]);
   useEffect(()=>{void load()},[load]);
   const update=useCallback(async(id:string,state:InterestState)=>{
-    if(busy)return;
+    if(busy||bulkPending)return;
     const prev=events.find(e=>e.id===id)?.preference||'neutral';setBusy(id);
     setEvents(old=>old.map(e=>e.id===id?{...e,preference:state}:e));
     try{if(mode==='preview'){const prefs=getLocalPreferences();prefs[id]=state;saveLocalPreferences(prefs)}else{const res=await fetch(`/api/events/${encodeURIComponent(id)}/preference`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})});if(!res.ok)throw Error((await res.json().catch(()=>({error:'Cannot save preference'}))).error||'Could not save preference');const json=await res.json() as {state:InterestState};setEvents(old=>old.map(e=>e.id===id?{...e,preference:json.state}:e))}}
     catch(e){setEvents(old=>old.map(ev=>ev.id===id?{...ev,preference:prev}:ev));showMessage(e instanceof Error?e.message:'Saving failed')}
     finally{setBusy('')}
-  },[events,busy,mode]);
+  },[events,busy,bulkPending,mode]);
   const counts=useMemo(()=>({discover:events.filter(e=>e.preference!=='not_interested'&&!isPast(e.date)).length,wishlist:events.filter(e=>e.preference==='wishlisted').length,not_interested:events.filter(e=>e.preference==='not_interested').length,upcoming:events.filter(e=>!isPast(e.date)).length,past:events.filter(e=>isPast(e.date)).length}),[events]);
   const filtered=useMemo(()=>{
     const needle=search.trim().toLowerCase();let list=applyTab(events,tab).filter(e=>{
@@ -215,6 +217,33 @@ export default function App(){
     else if(sort==='relevance')list=list.sort(compareRelevance);else list=list.sort(compareConcerts);
     return list;
   },[events,tab,search,genre,sort,dateFilter,selectedRange]);
+  const visibleIds=filtered.map(event=>event.id).join('\n');
+  useEffect(()=>{setSelectedIds(new Set())},[visibleIds]);
+  const selectedCount=filtered.reduce((count,event)=>count+(selectedIds.has(event.id)?1:0),0);
+  const allVisibleSelected=filtered.length>0&&selectedCount===filtered.length;
+  const someVisibleSelected=selectedCount>0&&!allVisibleSelected;
+  useEffect(()=>{if(selectAllRef.current)selectAllRef.current.indeterminate=someVisibleSelected},[someVisibleSelected]);
+  const selectVisible=(checked:boolean)=>setSelectedIds(checked?new Set(filtered.map(event=>event.id)):new Set());
+  const selectEvent=(id:string,checked:boolean)=>setSelectedIds(current=>{const next=new Set(current);if(checked)next.add(id);else next.delete(id);return next});
+  const applyBulkPreference=useCallback(async(state:InterestState)=>{
+    const ids=filtered.filter(event=>selectedIds.has(event.id)).map(event=>event.id);
+    if(!ids.length||bulkPending||busy)return;
+    setBulkPending(true);
+    try{
+      if(mode==='preview'){
+        const preferences=getLocalPreferences();
+        for(const id of ids)preferences[id]=state;
+        saveLocalPreferences(preferences);
+      }else{
+        const response=await fetch('/api/events/preferences',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,state})});
+        if(!response.ok)throw Error((await response.json().catch(()=>({error:'Cannot save preferences'}))).error||'Could not save preferences');
+      }
+      setEvents(current=>current.map(event=>ids.includes(event.id)?{...event,preference:state}:event));
+      setSelectedIds(new Set());
+      showMessage(state==='wishlisted'?`Added ${ids.length} ${ids.length===1?'event':'events'} to your wishlist`:`Marked ${ids.length} ${ids.length===1?'event':'events'} as not interested`);
+    }catch(error){showMessage(error instanceof Error?error.message:'Bulk update failed')}
+    finally{setBulkPending(false)}
+  },[filtered,selectedIds,bulkPending,busy,mode]);
   const eventWord=filtered.length===1?'event':'events';
   const viewCountLabel=selectedRange?`${filtered.length} ${eventWord} · ${niceDate(selectedRange.start)} – ${niceDate(selectedRange.end)}`:`${filtered.length} upcoming ${eventWord}`;
   const hasNonDefaultFilters=Boolean(search.trim())||genre!=='All genres'||selectedRange!==null||dateFilter!=='upcoming'||sort!=='soonest';
@@ -231,14 +260,14 @@ export default function App(){
           <div className="toolbar"><label className="search-box"><Search size={19}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search artists, concerts, venues..." aria-label="Search concerts"/>{search&&<button type="button" aria-label="Clear search" onClick={()=>setSearch('')}><X size={15}/></button>}</label><DatePicker value={selectedRange} onChange={range=>{setSelectedRange(range);setDateFilter(range?'date':'upcoming')}}/><div className="sort-control"><span id="sort-label">Sort by</span><SortPicker value={sort} onChange={setSort}/></div></div>
           {hasNonDefaultFilters&&<div className="date-toolbar"><button type="button" className="reset-filters" onClick={()=>{setSearch('');setGenre('All genres');setSelectedRange(null);setDateFilter('upcoming');setSort('soonest')}}>Clear filters <X size={14}/></button></div>}
           <div className="filters-row"><div className="genre-scroll"><SlidersHorizontal size={17} className="filter-icon"/>{genres.map(g=><button key={g} className={'genre-pill '+(g===genre?'active':'')} onClick={()=>setGenre(g)}>{g}</button>)}</div></div>
-          <div className="list-settings"><span>{lastSync}</span></div>
-          {filtered.length>0?<div className="event-grid">{filtered.map(e=><ConcertCard key={e.id} event={e} busy={busy===e.id} onPref={update} onDetail={x=>setDetailId(x.id)}/>)}</div>:<div className="empty-state"><div className="empty-icon">{tab==='wishlist'?<Heart size={31}/>:tab==='not_interested'?<EyeOff size={31}/>:<Search size={31}/>}</div><h3>{tab==='wishlist'?'Your wishlist is waiting':tab==='not_interested'?'Nothing dismissed yet':'No concerts found'}</h3><p>{tab==='wishlist'?'Save concerts from Discover and they will appear here.':tab==='not_interested'?'Events you mark as not interested will be here, ready to restore.':'Adjust your search, genre or date filters to see more concerts.'}</p><button onClick={()=>{setTab('discover');setSearch('');setGenre('All genres');setSelectedRange(null);setDateFilter('upcoming')}}>Explore concerts <ArrowRight size={16}/></button></div>}
+          <div className="list-settings"><span>{lastSync}</span><div className="selection-controls"><label className="select-all-control"><input ref={selectAllRef} type="checkbox" checked={allVisibleSelected} disabled={!filtered.length||bulkPending} aria-label={`Select all ${filtered.length} shown events`} onChange={event=>selectVisible(event.target.checked)}/><span>Select all shown ({filtered.length})</span></label>{selectedCount>0&&<><span className="selection-count" aria-live="polite">{selectedCount} selected</span><button type="button" className="bulk-action wishlist" disabled={bulkPending||Boolean(busy)} onClick={()=>void applyBulkPreference('wishlisted')}><Heart size={15}/>Add to wishlist</button><button type="button" className="bulk-action not-interested" disabled={bulkPending||Boolean(busy)} onClick={()=>void applyBulkPreference('not_interested')}><EyeOff size={15}/>Not interested</button><button type="button" className="clear-selection" disabled={bulkPending} onClick={()=>setSelectedIds(new Set())}>Clear</button></>}</div></div>
+          {filtered.length>0?<div className="event-grid">{filtered.map(e=><ConcertCard key={e.id} event={e} busy={busy===e.id||bulkPending} onPref={update} onDetail={x=>setDetailId(x.id)} selected={selectedIds.has(e.id)} onSelect={selectEvent}/>)}</div>:<div className="empty-state"><div className="empty-icon">{tab==='wishlist'?<Heart size={31}/>:tab==='not_interested'?<EyeOff size={31}/>:<Search size={31}/>}</div><h3>{tab==='wishlist'?'Your wishlist is waiting':tab==='not_interested'?'Nothing dismissed yet':'No concerts found'}</h3><p>{tab==='wishlist'?'Save concerts from Discover and they will appear here.':tab==='not_interested'?'Events you mark as not interested will be here, ready to restore.':'Adjust your search, genre or date filters to see more concerts.'}</p><button onClick={()=>{setTab('discover');setSearch('');setGenre('All genres');setSelectedRange(null);setDateFilter('upcoming')}}>Explore concerts <ArrowRight size={16}/></button></div>}
           <section className="bottom-callout"><div><span className="eyebrow">NEVER MISS A NOTE</span><h2>The city keeps playing.</h2><p>New concerts are researched every morning at 9 AM IST. Check back for new discoveries.</p></div><a href={SHEET_URL} target="_blank" rel="noopener noreferrer">View event database <ExternalLink size={17}/></a></section>
         </>}
       </div>
     </main>
     <footer><div className="footer-inner"><span><Music2 size={17}/> BENGALURU LIVE</span><span>Made for the music, not the noise.</span><a href={SHEET_URL} rel="noopener noreferrer" target="_blank">Google Sheets database <ExternalLink size={13}/></a></div></footer>
-    {detail&&<DetailModal event={detail} onClose={()=>setDetailId(null)} onPref={update} busy={busy===detail.id}/>}
+    {detail&&<DetailModal event={detail} onClose={()=>setDetailId(null)} onPref={update} busy={busy===detail.id||bulkPending}/>}
     {message&&<div role="alert" className="toast"><Sparkles size={16}/>{message}<button onClick={()=>setMessage('')}><X size={16}/></button></div>}
   </div>;
 }
