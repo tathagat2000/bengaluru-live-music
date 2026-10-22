@@ -4,4 +4,7 @@ export interface D1PreparedStatement{
   all<T=unknown>():Promise<D1Result<T>>;
   run():Promise<D1Result>;
 }
-export interface D1Database{prepare(query:string):D1PreparedStatement}
+export interface D1Database{
+  prepare(query:string):D1PreparedStatement;
+  batch(statements:D1PreparedStatement[]):Promise<D1Result[]>;
+}
